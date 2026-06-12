@@ -1,4 +1,2 @@
-playwright
-python-dotenv
-requests
-beautifulsoup4
+playwright>=1.44
+python-dotenv>=1.0
