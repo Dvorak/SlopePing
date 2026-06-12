@@ -32,7 +32,7 @@ configuration, local `state.json`, and ntfy notifications.
 ## Setup
 
 ```bash
-cd /Users/zhang/ski-coach-checker
+cd SlopePing
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -81,7 +81,7 @@ NOTIFY_ALWAYS_SEND_REPORT=false
 ## Run
 
 ```bash
-cd /Users/zhang/ski-coach-checker
+cd SlopePing
 source .venv/bin/activate
 python run_checker.py
 ```
