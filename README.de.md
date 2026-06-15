@@ -5,7 +5,8 @@ Sprache: [English](README.md) | [中文](README.zh-CN.md) | Deutsch
 SlopePing ist ein kleiner Dienstplan-Watcher für Trainer der Neuss Skihalle.
 Er meldet sich im Allrounder-Coach-Portal an, öffnet die Seite
 `Arbeitsplan/Verfügbarkeit`, liest die Tabelle `Übersicht` aus und sendet bei
-neuen Kursen eine Benachrichtigung über ntfy an dein Telefon.
+neuen Kursen oder nötigen Bestätigungen eine Benachrichtigung über ntfy an dein
+Telefon.
 
 Die erste Version bleibt bewusst einfach: Python, Playwright, lokale `.env`
 Konfiguration, lokale `state.json` und ntfy-Benachrichtigungen.
@@ -18,10 +19,16 @@ Konfiguration, lokale `state.json` und ntfy-Benachrichtigungen.
 - Wechselt zur Planungsseite `https://anmeldung.allrounder.de/do`
 - Liest diese Tabellenfelder:
   `Tag`, `Von`, `Bis`, `Raum/Ort`, `Trainingsbezeichnung`, `Bestätigung`
+- Erkennt den Bestätigungsstatus:
+  `confirmed`, `pending` oder `unknown`
+- Markiert Zeilen mit `Bestätigen` / `Absagen` Auswahl als handlungsbedürftig
 - Speichert nach jeder erfolgreichen Prüfung einen Screenshot
 - Vergleicht aktuelle Kurse mit `state.json`
-- Sendet ntfy-Benachrichtigungen bei neuen Kursen
+- Sendet ntfy-Benachrichtigungen bei neuen Kursen oder pending Aktionen
 - Kann im Testmodus bei jedem Lauf einen vollständigen Bericht senden
+
+SlopePing erkennt und meldet handlungsbedürftige Kurse nur. Es klickt nicht
+automatisch auf `Bestätigen`, `Absagen` oder `Speichern`.
 
 ## Voraussetzungen
 
@@ -72,7 +79,7 @@ Für Tests bei jedem erfolgreichen Lauf eine Nachricht senden:
 NOTIFY_ALWAYS_SEND_REPORT=true
 ```
 
-Für den normalen Betrieb nur bei neuen Kursen benachrichtigen:
+Für den normalen Betrieb nur bei neuen Kursen oder nötigen Bestätigungen benachrichtigen:
 
 ```dotenv
 NOTIFY_ALWAYS_SEND_REPORT=false
@@ -89,9 +96,41 @@ python run_checker.py
 Das Terminal zeigt jeden Schritt: Login, Navigation, Parsing, Screenshot,
 Vergleich und Benachrichtigungsstatus.
 
+Wenn ein Kurs pending ist, druckt das Terminal direkt kopierbare Befehle für
+diesen Kurs.
+
+## Per CLI bestätigen oder absagen
+
+SlopePing führt eine Bestätigung oder Absage nur aus, wenn du ausdrücklich einen
+dieser Befehle startest:
+
+```bash
+python run_checker.py --accept "LESSON_KEY_OR_ID"
+python run_checker.py --decline "LESSON_KEY_OR_ID"
+```
+
+Am einfachsten ist die `lesson_id` aus der ntfy- oder Konsolenmeldung, zum
+Beispiel:
+
+```text
+17.06.2026|14:00|16:00|Skischule|Extraschicht Skischule
+```
+
+`--accept` wählt `Bestätigen`. `--decline` wählt `Absagen`. Danach klickt
+SlopePing auf `Speichern`, speichert Vorher-/Nachher-Screenshots und schreibt
+`actions.log`.
+
+Sicherheitsregeln:
+
+- Nur pending Kurse können bearbeitet werden.
+- Wenn Kurs, Dropdown, Aktion oder `Speichern` Button fehlt, gibt SlopePing eine
+  klare Fehlermeldung aus und stoppt.
+- ntfy-Benachrichtigungen lösen niemals automatisch Aktionen aus.
+
 ## Laufzeitdateien
 
 - `state.json`: zuletzt bekannter Kursstand
+- `actions.log`: Historie manueller Bestätigungen und Absagen
 - `screenshots/`: Erfolgs- und Fehler-Screenshots
 
 Beide sind in Git ignoriert.
@@ -105,6 +144,8 @@ Beide sind in Git ignoriert.
   Benachrichtigungsrechte, Server und Topic prüfen.
 - Benachrichtigung testen ohne neuen Kurs:
   `NOTIFY_ALWAYS_SEND_REPORT=true` setzen.
+- Wenn ein Kurs eine Aktion braucht, lautet der Titel `SlopePing: action needed`
+  und die Nachricht zeigt die verfügbaren Aktionen.
 
 ## Weitere Details
 

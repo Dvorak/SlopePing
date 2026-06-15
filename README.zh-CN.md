@@ -4,7 +4,7 @@
 
 SlopePing 是为 Neuss Skihalle 教练设计的排班提醒工具。它会登录 Allrounder
 教练门户，打开 `Arbeitsplan/Verfügbarkeit` 页面，读取 `Übersicht` 排班表，并在
-出现新课程时通过 ntfy 推送到手机。
+出现新课程或课程需要确认时通过 ntfy 推送到手机。
 
 第一版保持简单：Python、Playwright、本地 `.env` 配置、本地 `state.json`，以及
 ntfy 通知。
@@ -17,10 +17,16 @@ ntfy 通知。
 - 切换到排班页面 `https://anmeldung.allrounder.de/do`
 - 解析排班表字段：
   `Tag`, `Von`, `Bis`, `Raum/Ort`, `Trainingsbezeichnung`, `Bestätigung`
+- 识别确认状态：
+  `confirmed`, `pending`, `unknown`
+- 将带有 `Bestätigen` / `Absagen` 下拉操作的课程标记为需要处理
 - 每次成功检查后保存截图
 - 将当前课程和 `state.json` 里的上次状态对比
-- 发现新课程时发送 ntfy 通知
+- 发现新课程或待确认课程时发送 ntfy 通知
 - 测试阶段可以每次运行都发送当前课程报告
+
+SlopePing 只识别并提醒需要处理的课程。它不会自动点击 `Bestätigen`、`Absagen`
+或 `Speichern`。
 
 ## 需要准备
 
@@ -71,7 +77,7 @@ topic 的人都可以订阅。
 NOTIFY_ALWAYS_SEND_REPORT=true
 ```
 
-正常使用时，只在发现新课程时通知：
+正常使用时，只在发现新课程或待确认课程时通知：
 
 ```dotenv
 NOTIFY_ALWAYS_SEND_REPORT=false
@@ -87,9 +93,36 @@ python run_checker.py
 
 终端会打印每一步：登录、跳转、解析、截图、对比、通知状态。
 
+如果发现 pending 课程，终端还会直接打印可复制的操作命令。
+
+## 用 CLI 确认或拒绝
+
+SlopePing 只有在你明确运行下面命令时，才会执行确认/拒绝操作：
+
+```bash
+python run_checker.py --accept "LESSON_KEY_OR_ID"
+python run_checker.py --decline "LESSON_KEY_OR_ID"
+```
+
+推荐使用 ntfy 或 console 消息里的 `lesson_id`，例如：
+
+```text
+17.06.2026|14:00|16:00|Skischule|Extraschicht Skischule
+```
+
+`--accept` 会选择 `Bestätigen`。`--decline` 会选择 `Absagen`。之后 SlopePing
+会点击 `Speichern`，保存操作前后截图，并写入 `actions.log`。
+
+安全规则：
+
+- 只能操作 `pending` 课程。
+- 如果找不到课程、下拉框、动作选项或 `Speichern` 按钮，SlopePing 会打印清晰错误并停止。
+- ntfy 通知本身不会自动触发任何确认或拒绝动作。
+
 ## 运行时生成的文件
 
 - `state.json`：上一次课程状态
+- `actions.log`：手动确认/拒绝操作历史
 - `screenshots/`：成功和失败截图
 
 这些文件都已被 Git 忽略。
@@ -100,6 +133,7 @@ python run_checker.py
 - 页面打开了但没有解析到课程：看 `screenshots/` 里最新截图。
 - 终端显示 ntfy 已发送但手机没响：检查手机通知权限、server、topic 拼写。
 - 想测试通知但没有新课程：设置 `NOTIFY_ALWAYS_SEND_REPORT=true`。
+- 如果课程需要处理，通知标题会是 `SlopePing: action needed`，正文会显示可选动作。
 
 ## 更多说明
 

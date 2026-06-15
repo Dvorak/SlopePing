@@ -5,7 +5,7 @@ Language: English | [中文](README.zh-CN.md) | [Deutsch](README.de.md)
 SlopePing is a small schedule watcher designed for Neuss Skihalle trainers. It
 logs in to the Allrounder coach portal, opens the `Arbeitsplan/Verfügbarkeit`
 page, reads the `Übersicht` schedule table, and sends a phone notification
-through ntfy when new lessons appear.
+through ntfy when new lessons appear or a lesson needs confirmation.
 
 The first version is intentionally simple: Python, Playwright, local `.env`
 configuration, local `state.json`, and ntfy notifications.
@@ -18,10 +18,16 @@ configuration, local `state.json`, and ntfy notifications.
 - Switches to the schedule page at `https://anmeldung.allrounder.de/do`
 - Parses the schedule table with these fields:
   `Tag`, `Von`, `Bis`, `Raum/Ort`, `Trainingsbezeichnung`, `Bestätigung`
+- Detects confirmation status:
+  `confirmed`, `pending`, or `unknown`
+- Marks rows with `Bestätigen` / `Absagen` dropdown actions as action-needed
 - Saves a screenshot after each successful check
 - Compares current lessons with `state.json`
-- Sends ntfy notifications for new lessons
+- Sends ntfy notifications for new lessons or pending confirmation actions
 - Can send a report on every run while testing
+
+SlopePing only detects and notifies action-needed lessons. It does not click
+`Bestätigen`, `Absagen`, or `Speichern` for you.
 
 ## Requirements
 
@@ -72,7 +78,7 @@ For testing, send a notification on every successful run:
 NOTIFY_ALWAYS_SEND_REPORT=true
 ```
 
-For normal use, notify only when new lessons appear:
+For normal use, notify only when new lessons or pending confirmation actions appear:
 
 ```dotenv
 NOTIFY_ALWAYS_SEND_REPORT=false
@@ -89,9 +95,39 @@ python run_checker.py
 The terminal prints each step, including login, navigation, parsing, screenshot
 saving, comparison, and notification status.
 
+If a lesson is pending, the terminal also prints copy-ready commands for that
+lesson.
+
+## Confirm Or Decline From The CLI
+
+SlopePing can execute a confirmation action only when you explicitly run one of
+these commands:
+
+```bash
+python run_checker.py --accept "LESSON_KEY_OR_ID"
+python run_checker.py --decline "LESSON_KEY_OR_ID"
+```
+
+Use the `lesson_id` shown in the ntfy or console message, for example:
+
+```text
+17.06.2026|14:00|16:00|Skischule|Extraschicht Skischule
+```
+
+`--accept` selects `Bestätigen`. `--decline` selects `Absagen`. SlopePing then
+clicks `Speichern`, saves before/after screenshots, and writes `actions.log`.
+
+Safety rules:
+
+- Only pending lessons can be acted on.
+- If the lesson, dropdown, action, or `Speichern` button is missing, SlopePing
+  prints a clear error and stops.
+- ntfy notifications never trigger actions by themselves.
+
 ## Files Created At Runtime
 
 - `state.json`: last known lesson state
+- `actions.log`: manual accept/decline action history
 - `screenshots/`: success and error screenshots
 
 Both are ignored by Git.
@@ -105,6 +141,8 @@ Both are ignored by Git.
   permission, server, and topic spelling.
 - If you want to test notifications without waiting for a new lesson, set
   `NOTIFY_ALWAYS_SEND_REPORT=true`.
+- If a lesson needs action, the notification title is `SlopePing: action needed`
+  and the message shows the available actions.
 
 ## More Details
 

@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 .env
 state.json
+actions.log
 screenshots/
 logs/
 .DS_Store

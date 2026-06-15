@@ -10,16 +10,16 @@ SlopePing 聚焦 Neuss Skihalle 教练在 Allrounder 教练门户里的排班查
 
 - `run_checker.py`
   入口文件。把 `src/` 加入 `sys.path`，然后调用
-  `ski_checker.checker.run()`。
-- `src/ski_checker/config.py`
+  `slopeping.checker.run()`。
+- `src/slopeping/config.py`
   读取 `.env`，生成类型化配置。
-- `src/ski_checker/browser.py`
+- `src/slopeping/browser.py`
   负责 Playwright 启动、登录、页面跳转、新页面切换和截图。
-- `src/ski_checker/parser.py`
+- `src/slopeping/parser.py`
   找到排班表，把表格行转换成课程记录。
-- `src/ski_checker/state.py`
+- `src/slopeping/state.py`
   定义课程记录，读写 `state.json`，并对比本次和上次课程。
-- `src/ski_checker/notify.py`
+- `src/slopeping/notify.py`
   通过 ntfy 发送通知，并保留 console fallback。
 
 ## 运行流程
@@ -39,6 +39,17 @@ SlopePing 聚焦 Neuss Skihalle 教练在 Allrounder 教练门户里的排班查
 13. 根据需要通过 ntfy 通知。
 14. 将当前记录写回 `state.json`。
 
+如果传入 `--accept` 或 `--decline`，SlopePing 会执行动作流程，而不是普通的通知和保存流程：
+
+1. 登录并打开排班页。
+2. 解析表格记录及对应 DOM 行。
+3. 通过 `lesson_id`、完整 hash key 或 hash 前缀匹配课程。
+4. 如果课程不是 `pending`，拒绝执行。
+5. 选择 `Bestätigen` 或 `Absagen`。
+6. 点击 `Speichern`。
+7. 保存操作前后截图。
+8. 向 `actions.log` 追加一行 JSON 日志。
+
 ## 排班表解析
 
 优先使用选择器：
@@ -56,6 +67,17 @@ table#TAB
 - `Trainingsbezeichnung`
 - `Bestätigung`
 
+每条解析出的课程还会带上：
+
+- `confirmation_status`：`confirmed`、`pending` 或 `unknown`
+- `available_actions`：从该行下拉框读取到的可选动作
+
+状态识别规则：
+
+- `confirmed`：确认单元格文本包含 `Bestätigt`
+- `pending`：确认单元格里有 `select`，并且选项包含 `Bestätigen` 和 `Absagen`
+- `unknown`：以上规则都不匹配
+
 如果 `table#TAB` 不可见，会尝试找 `Übersicht` 附近的表格，再 fallback 到按表头扫描所有表格。
 
 ## 变化检测
@@ -70,13 +92,28 @@ Tag + Von + Bis + Raum/Ort + Trainingsbezeichnung
 
 如果 key 已存在，但完整记录变化了，例如 `Bestätigung` 变了，就是状态变化。
 
-正常模式只通知新课程。测试阶段可以设置：
+正常模式会通知新课程，以及需要处理的 pending 课程。测试阶段可以设置：
 
 ```dotenv
 NOTIFY_ALWAYS_SEND_REPORT=true
 ```
 
 这样每次成功运行都会发送当前课程报告。
+
+如果被通知的课程里有 pending 状态，通知标题会是：
+
+```text
+SlopePing: action needed
+```
+
+SlopePing 不会自动选择 `Bestätigen` 或 `Absagen`，也不会点击 `Speichern`。
+
+普通检查运行时，pending 课程会在终端打印可复制命令：
+
+```bash
+python run_checker.py --accept "LESSON_ID"
+python run_checker.py --decline "LESSON_ID"
+```
 
 ## ntfy 通知
 
@@ -91,6 +128,8 @@ NOTIFY_ALWAYS_SEND_REPORT=true
 - 测试报告模式下的当前全部课程
 - 待确认的新课程
 - `Tag`, `Von`, `Bis`, `Raum/Ort`, `Trainingsbezeichnung`, `Bestätigung`
+- `confirmation_status`
+- `available_actions`
 
 如果 ntfy 配置缺失或发送失败，程序会把同样内容打印到 console，并继续运行。
 
