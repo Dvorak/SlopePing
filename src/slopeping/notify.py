@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import TypeAlias
 
@@ -72,14 +73,22 @@ def _send_ntfy(subject: str, body: str) -> bool:
         print(f"WARNING: Missing ntfy notification config: {', '.join(missing)}. Falling back to console.")
         return False
 
+    headers = {
+        "Title": subject,
+        "Content-Type": "text/plain; charset=utf-8",
+    }
+
+    actions = _build_control_action()
+    actions.extend(_build_calendar_action())
+
+    if actions:
+        headers["Actions"] = ";".join(actions)
+
     request = urllib.request.Request(
         f"{server}/{topic}",
         data=body.encode("utf-8"),
         method="POST",
-        headers={
-            "Title": subject,
-            "Content-Type": "text/plain; charset=utf-8",
-        },
+        headers=headers,
     )
 
     try:
@@ -90,6 +99,30 @@ def _send_ntfy(subject: str, body: str) -> bool:
         return False
 
     return True
+
+
+def _build_control_action() -> list[str]:
+    """Build an ntfy view action that opens the safe mobile control page."""
+    webhook_url = os.getenv("ACTION_WEBHOOK_BASE_URL", "").strip().rstrip("/")
+    webhook_token = os.getenv("ACTION_WEBHOOK_TOKEN", "").strip()
+
+    if not webhook_url or not webhook_token:
+        return []
+
+    control_query = urllib.parse.urlencode({"token": webhook_token})
+    return [f"view, Open SlopePing, {webhook_url}/control?{control_query}"]
+
+
+def _build_calendar_action() -> list[str]:
+    """Build an ntfy view action that opens the mobile calendar export page."""
+    webhook_url = os.getenv("ACTION_WEBHOOK_BASE_URL", "").strip().rstrip("/")
+    webhook_token = os.getenv("ACTION_WEBHOOK_TOKEN", "").strip()
+
+    if not webhook_url or not webhook_token:
+        return []
+
+    calendar_query = urllib.parse.urlencode({"token": webhook_token})
+    return [f"view, Open calendar page, {webhook_url}/calendar?{calendar_query}"]
 
 
 def _notification_subject(lessons: list[Lesson]) -> str:

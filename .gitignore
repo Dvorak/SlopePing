@@ -7,6 +7,7 @@ __pycache__/
 state.json
 actions.log
 screenshots/
+calendar_events/
 logs/
 .DS_Store
 dist/
