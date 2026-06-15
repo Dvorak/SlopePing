@@ -11,6 +11,8 @@ SlopePing 聚焦 Neuss Skihalle 教练在 Allrounder 教练门户里的排班查
 - `run_checker.py`
   入口文件。把 `src/` 加入 `sys.path`，然后调用
   `slopeping.checker.run()`。
+- `scripts/webhook_server.py`
+  启动 FastAPI webhook / 手机控制页服务。
 - `src/slopeping/config.py`
   读取 `.env`，生成类型化配置。
 - `src/slopeping/browser.py`
@@ -21,6 +23,10 @@ SlopePing 聚焦 Neuss Skihalle 教练在 Allrounder 教练门户里的排班查
   定义课程记录，读写 `state.json`，并对比本次和上次课程。
 - `src/slopeping/notify.py`
   通过 ntfy 发送通知，并保留 console fallback。
+- `src/slopeping/webhook.py`
+  提供手机控制页、日历导出和需要二次确认的远程操作。
+- `src/slopeping/ics_generator.py`
+  为课程生成 Europe/Berlin 时区的 `.ics` 日历事件。
 
 ## 运行流程
 
@@ -115,6 +121,19 @@ python run_checker.py --accept "LESSON_ID"
 python run_checker.py --decline "LESSON_ID"
 ```
 
+## 手机控制流程
+
+如果配置了 `ACTION_WEBHOOK_BASE_URL` 和 `ACTION_WEBHOOK_TOKEN`，ntfy 会增加安全链接：
+
+- `Open SlopePing`：打开 `/control?token=...`
+- `Open calendar page`：打开 `/calendar?token=...`
+
+通知不会直接执行确认或拒绝。控制页和日历页默认读取上一次保存的 `state.json`
+快照，所以打开页面不会启动 Playwright。`/actions/execute` 会在二次确认后登录并
+重新检查实时 Allrounder 页面，确认成功后再保存。
+
+webhook 动作路径带有进程内锁，同一时间只允许一个远程操作运行。
+
 ## ntfy 通知
 
 程序会 POST 纯文本到：
@@ -141,6 +160,10 @@ python run_checker.py --decline "LESSON_ID"
   上一次成功解析的课程状态。Git 忽略。
 - `screenshots/`
   成功和失败截图。Git 忽略。
+- `actions.log`
+  CLI 和 webhook 操作历史，JSON lines 格式。Git 忽略。
+- `calendar_events/`
+  webhook 操作生成的 `.ics` 文件。Git 忽略。
 
 ## 安全说明
 
@@ -148,3 +171,5 @@ python run_checker.py --decline "LESSON_ID"
 - `NTFY_TOPIC` 要设置得长且私密。
 - 公共 `ntfy.sh` 默认不会给 topic 加密码保护。
 - 程序会打印运行步骤，但不会打印密码。
+- webhook server 默认监听 `127.0.0.1`。只有在可信网络或安全 tunnel 后面，才建议使用 `0.0.0.0`。
+- webhook token 仍然会出现在 URL 中，所以不要在没有 HTTPS 和更强认证的情况下暴露到公网。

@@ -25,10 +25,17 @@ Konfiguration, lokale `state.json` und ntfy-Benachrichtigungen.
 - Speichert nach jeder erfolgreichen Prüfung einen Screenshot
 - Vergleicht aktuelle Kurse mit `state.json`
 - Sendet ntfy-Benachrichtigungen bei neuen Kursen oder pending Aktionen
+- Öffnet über ntfy eine mobile SlopePing-Kontrollseite
+- Verlangt eine zweite Bestätigung, bevor remote bestätigt oder abgesagt wird
+- Kann Kurse als `.ics` Kalenderdateien exportieren
 - Kann im Testmodus bei jedem Lauf einen vollständigen Bericht senden
 
-SlopePing erkennt und meldet handlungsbedürftige Kurse nur. Es klickt nicht
-automatisch auf `Bestätigen`, `Absagen` oder `Speichern`.
+SlopePing erkennt und meldet handlungsbedürftige Kurse. Es klickt nur nach
+einem ausdrücklichen CLI-Befehl oder nach einer zweiten Bestätigung auf der
+mobilen Kontrollseite auf `Bestätigen`, `Absagen` und `Speichern`.
+
+In ntfy-Benachrichtigungen erscheint `Open SlopePing` für die mobile
+Kontrollseite.
 
 ## Voraussetzungen
 
@@ -73,6 +80,19 @@ NTFY_TOPIC=your-long-private-topic
 In der ntfy App denselben `NTFY_SERVER` und dasselbe `NTFY_TOPIC` abonnieren.
 Das Topic privat halten; wer es kennt, kann es abonnieren.
 
+Für die mobile Kontrollseite Webhook-Werte eintragen:
+
+```dotenv
+ACTION_WEBHOOK_TOKEN=your-generated-secure-token
+ACTION_WEBHOOK_BASE_URL=http://YOUR_LOCAL_IP:8000
+WEBHOOK_HOST=127.0.0.1
+WEBHOOK_PORT=8000
+```
+
+Für Zugriff vom Telefon im lokalen Netz muss `ACTION_WEBHOOK_BASE_URL` die
+lokale IP des Computers verwenden. `WEBHOOK_HOST=0.0.0.0` nur in einem
+vertrauenswürdigen Netzwerk setzen.
+
 Für Tests bei jedem erfolgreichen Lauf eine Nachricht senden:
 
 ```dotenv
@@ -87,6 +107,16 @@ NOTIFY_ALWAYS_SEND_REPORT=false
 
 ## Ausführen
 
+Für die mobile Kontrollseite zuerst den Webhook-Server starten:
+
+```bash
+cd SlopePing
+source .venv/bin/activate
+python scripts/webhook_server.py
+```
+
+Danach die Prüfung ausführen:
+
 ```bash
 cd SlopePing
 source .venv/bin/activate
@@ -98,6 +128,10 @@ Vergleich und Benachrichtigungsstatus.
 
 Wenn ein Kurs pending ist, druckt das Terminal direkt kopierbare Befehle für
 diesen Kurs.
+
+Auf dem Handy öffnet `Open SlopePing` die Kontrollseite. Dort kannst du Kurse
+prüfen, Kalenderdateien laden und erst nach einer zweiten Bestätigung annehmen
+oder absagen.
 
 ## Per CLI bestätigen oder absagen
 
@@ -126,11 +160,15 @@ Sicherheitsregeln:
 - Wenn Kurs, Dropdown, Aktion oder `Speichern` Button fehlt, gibt SlopePing eine
   klare Fehlermeldung aus und stoppt.
 - ntfy-Benachrichtigungen lösen niemals automatisch Aktionen aus.
+- Der Webhook-Server hört standardmäßig nur auf `127.0.0.1`. Für Zugriff aus
+  dem lokalen Netz setze `WEBHOOK_HOST=0.0.0.0` nur in einem vertrauenswürdigen
+  Netzwerk und verwende die lokale IP in `ACTION_WEBHOOK_BASE_URL`.
 
 ## Laufzeitdateien
 
 - `state.json`: zuletzt bekannter Kursstand
 - `actions.log`: Historie manueller Bestätigungen und Absagen
+- `calendar_events/`: Kalenderdateien aus Webhook-Aktionen
 - `screenshots/`: Erfolgs- und Fehler-Screenshots
 
 Beide sind in Git ignoriert.

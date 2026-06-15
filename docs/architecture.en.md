@@ -12,6 +12,8 @@ Allrounder coach portal.
 
 - `run_checker.py`
   Entry point. Adds `src/` to `sys.path` and calls `slopeping.checker.run()`.
+- `scripts/webhook_server.py`
+  Starts the FastAPI webhook/control-page server.
 - `src/slopeping/config.py`
   Loads `.env` and builds typed settings.
 - `src/slopeping/browser.py`
@@ -23,6 +25,11 @@ Allrounder coach portal.
   the previous run.
 - `src/slopeping/notify.py`
   Sends ntfy notifications, with console fallback.
+- `src/slopeping/webhook.py`
+  Provides the mobile control page, calendar export, and reviewed remote
+  actions.
+- `src/slopeping/ics_generator.py`
+  Builds Europe/Berlin `.ics` calendar events for lessons.
 
 ## Runtime Flow
 
@@ -118,6 +125,22 @@ python run_checker.py --accept "LESSON_ID"
 python run_checker.py --decline "LESSON_ID"
 ```
 
+## Mobile Control Flow
+
+If `ACTION_WEBHOOK_BASE_URL` and `ACTION_WEBHOOK_TOKEN` are configured, ntfy
+adds safe links:
+
+- `Open SlopePing`: opens `/control?token=...`
+- `Open calendar page`: opens `/calendar?token=...`
+
+The notification does not execute accept or decline actions directly. The
+control and calendar pages read the last saved `state.json` snapshot, so opening
+them does not start Playwright. `/actions/execute` then logs in, re-checks the
+live Allrounder page, and saves only after the second confirmation.
+
+The webhook action path uses a process-local lock, so only one remote action can
+run at a time.
+
 ## ntfy Notification
 
 The project posts plain text to:
@@ -145,6 +168,11 @@ message to the console and keeps running.
   Last successful parsed state. Ignored by Git.
 - `screenshots/`
   Success and error screenshots. Ignored by Git.
+- `actions.log`
+  JSON-line history for CLI and webhook actions. Ignored by Git.
+- `calendar_events/`
+  Generated `.ics` files for accepted or declined webhook actions. Ignored by
+  Git.
 
 ## Safety Notes
 
@@ -153,3 +181,7 @@ message to the console and keeps running.
 - The public `ntfy.sh` service does not protect a topic with a password by
   default.
 - The script prints progress messages, but it does not print the password.
+- The webhook server listens on `127.0.0.1` by default. Use `0.0.0.0` only on a
+  trusted network or behind a secured tunnel.
+- The webhook token is still passed in URLs, so avoid exposing the server on the
+  public internet without HTTPS and stronger authentication.

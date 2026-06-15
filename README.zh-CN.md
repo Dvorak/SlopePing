@@ -23,10 +23,13 @@ ntfy 通知。
 - 每次成功检查后保存截图
 - 将当前课程和 `state.json` 里的上次状态对比
 - 发现新课程或待确认课程时发送 ntfy 通知
+- 通知里带 `Open SlopePing`，可以打开手机控制页
+- 手机控制页会在真正确认/拒绝前再次让你确认
+- 可以把课程导出为 `.ics` 日历文件
 - 测试阶段可以每次运行都发送当前课程报告
 
-SlopePing 只识别并提醒需要处理的课程。它不会自动点击 `Bestätigen`、`Absagen`
-或 `Speichern`。
+SlopePing 只识别并提醒需要处理的课程。它只有在你明确运行 CLI 命令，或在手机控制页
+二次确认后，才会点击 `Bestätigen`、`Absagen` 和 `Speichern`。
 
 ## 需要准备
 
@@ -71,6 +74,17 @@ NTFY_TOPIC=your-long-private-topic
 手机 ntfy app 里订阅同一个 `NTFY_SERVER` 和 `NTFY_TOPIC`。topic 要保密；知道
 topic 的人都可以订阅。
 
+如果要使用手机控制页，填写 webhook：
+
+```dotenv
+ACTION_WEBHOOK_TOKEN=your-generated-secure-token
+ACTION_WEBHOOK_BASE_URL=http://YOUR_LOCAL_IP:8000
+WEBHOOK_HOST=127.0.0.1
+WEBHOOK_PORT=8000
+```
+
+手机通过局域网访问时，`ACTION_WEBHOOK_BASE_URL` 要写电脑的局域网 IP。只有在可信网络里才把 `WEBHOOK_HOST` 改成 `0.0.0.0`。
+
 测试阶段，如果希望每次成功运行都收到通知：
 
 ```dotenv
@@ -85,6 +99,16 @@ NOTIFY_ALWAYS_SEND_REPORT=false
 
 ## 运行
 
+如果要使用手机控制页，先启动 webhook server：
+
+```bash
+cd SlopePing
+source .venv/bin/activate
+python scripts/webhook_server.py
+```
+
+然后运行检查：
+
 ```bash
 cd SlopePing
 source .venv/bin/activate
@@ -94,6 +118,10 @@ python run_checker.py
 终端会打印每一步：登录、跳转、解析、截图、对比、通知状态。
 
 如果发现 pending 课程，终端还会直接打印可复制的操作命令。
+
+手机通知里的 `Open SlopePing` 会打开控制页。这里可以查看当前课程、下载日历文件，
+也可以进入确认/拒绝页面。确认或拒绝动作需要再点一次确认按钮，不会因为误触 ntfy
+通知就直接执行。
 
 ## 用 CLI 确认或拒绝
 
@@ -118,11 +146,13 @@ python run_checker.py --decline "LESSON_KEY_OR_ID"
 - 只能操作 `pending` 课程。
 - 如果找不到课程、下拉框、动作选项或 `Speichern` 按钮，SlopePing 会打印清晰错误并停止。
 - ntfy 通知本身不会自动触发任何确认或拒绝动作。
+- webhook server 默认只监听本机 `127.0.0.1`。如果手机需要通过局域网访问，可以在可信网络下设置 `WEBHOOK_HOST=0.0.0.0`，并把 `ACTION_WEBHOOK_BASE_URL` 改成电脑的局域网地址。
 
 ## 运行时生成的文件
 
 - `state.json`：上一次课程状态
 - `actions.log`：手动确认/拒绝操作历史
+- `calendar_events/`：webhook 操作生成的日历文件
 - `screenshots/`：成功和失败截图
 
 这些文件都已被 Git 忽略。

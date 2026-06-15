@@ -2,32 +2,78 @@
 
 Language: English | [中文](README.zh-CN.md) | [Deutsch](README.de.md)
 
-SlopePing is a small schedule watcher designed for Neuss Skihalle trainers. It
-logs in to the Allrounder coach portal, opens the `Arbeitsplan/Verfügbarkeit`
-page, reads the `Übersicht` schedule table, and sends a phone notification
-through ntfy when new lessons appear or a lesson needs confirmation.
+SlopePing watches the Neuss Skihalle schedule, sends ntfy alerts when lessons
+change, and can open a phone-friendly control page for reviewed accept/decline
+actions.
 
-The first version is intentionally simple: Python, Playwright, local `.env`
-configuration, local `state.json`, and ntfy notifications.
+The project stays intentionally small: Python, Playwright, a local `.env`, a
+local `state.json`, and ntfy notifications.
+
+## Quick Start
+
+1. Install dependencies.
+
+  ```bash
+  cd SlopePing
+  python3.11 -m venv .venv
+  source .venv/bin/activate
+  pip install -r requirements.txt
+  python -m playwright install chromium
+  cp .env.example .env
+  ```
+
+2. Configure `.env`.
+
+  ```dotenv
+  SKI_USERNAME=your_username
+  SKI_PASSWORD=your_password
+  NOTIFY_CHANNEL=ntfy
+  NTFY_SERVER=https://ntfy.sh
+  NTFY_TOPIC=your-long-private-topic
+  NOTIFY_ALWAYS_SEND_REPORT=true
+  ACTION_WEBHOOK_TOKEN=your-generated-secure-token
+  ACTION_WEBHOOK_BASE_URL=http://YOUR_LOCAL_IP:8000
+  WEBHOOK_HOST=127.0.0.1
+  WEBHOOK_PORT=8000
+  ```
+
+  Keep the ntfy topic private. For phone use, set `ACTION_WEBHOOK_BASE_URL`
+  to your Mac's local IP, not `localhost`, and set `WEBHOOK_HOST=0.0.0.0`
+  only on a trusted network.
+
+3. Start the webhook server.
+
+  ```bash
+  source .venv/bin/activate
+  python scripts/webhook_server.py
+  ```
+
+4. Run the checker.
+
+  ```bash
+  source .venv/bin/activate
+  python run_checker.py
+  ```
+
+5. Test on your phone.
+
+  Open the ntfy notification and tap `Open SlopePing`. Pending lessons require
+  a second confirmation in the control page before SlopePing changes anything.
+  If you need the full walkthrough, see [webhook-startup-guide.md](docs/webhook-startup-guide.md).
 
 ## What It Does
 
-- Opens `https://allrounder-jobs.de/login`
-- Logs in with `SKI_USERNAME` and `SKI_PASSWORD`
-- Opens `Meine Daten` -> `Arbeitsplan/Verfügbarkeit`
-- Switches to the schedule page at `https://anmeldung.allrounder.de/do`
-- Parses the schedule table with these fields:
-  `Tag`, `Von`, `Bis`, `Raum/Ort`, `Trainingsbezeichnung`, `Bestätigung`
-- Detects confirmation status:
-  `confirmed`, `pending`, or `unknown`
-- Marks rows with `Bestätigen` / `Absagen` dropdown actions as action-needed
-- Saves a screenshot after each successful check
-- Compares current lessons with `state.json`
-- Sends ntfy notifications for new lessons or pending confirmation actions
-- Can send a report on every run while testing
+- Logs in to the Allrounder portal and opens the schedule table
+- Detects confirmed, pending, and unknown lessons
+- Saves screenshots and compares against `state.json`
+- Sends ntfy notifications for new lessons or pending actions
+- Adds an `Open SlopePing` action that opens a mobile control page
+- Requires a second confirmation before remote accept/decline actions
+- Can export lessons as `.ics` calendar files
+- Supports `--accept` and `--decline` for explicit CLI actions
 
-SlopePing only detects and notifies action-needed lessons. It does not click
-`Bestätigen`, `Absagen`, or `Speichern` for you.
+SlopePing only changes a lesson after an explicit CLI command or after you open
+the mobile control page and confirm the action there.
 
 ## Requirements
 
@@ -35,102 +81,34 @@ SlopePing only detects and notifies action-needed lessons. It does not click
 - An Allrounder coach portal account for the Neuss Skihalle trainer system
 - The ntfy app on your phone, or another ntfy client
 
-## Setup
+## Details
 
-```bash
-cd SlopePing
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m playwright install chromium
-cp .env.example .env
-```
+See [webhook-startup-guide.md](docs/webhook-startup-guide.md) for the phone and
+webhook walkthrough.
 
-## Configure `.env`
-
-Edit:
-
-```bash
-nano .env
-```
-
-Set your login details:
-
-```dotenv
-SKI_USERNAME=your_username
-SKI_PASSWORD=your_password
-```
-
-Set ntfy:
-
-```dotenv
-NOTIFY_CHANNEL=ntfy
-NTFY_SERVER=https://ntfy.sh
-NTFY_TOPIC=your-long-private-topic
-```
-
-Use the same `NTFY_SERVER` and `NTFY_TOPIC` in the ntfy iOS/Android app. Keep
-the topic private; anyone who knows it can subscribe.
-
-For testing, send a notification on every successful run:
-
-```dotenv
-NOTIFY_ALWAYS_SEND_REPORT=true
-```
-
-For normal use, notify only when new lessons or pending confirmation actions appear:
-
-```dotenv
-NOTIFY_ALWAYS_SEND_REPORT=false
-```
-
-## Run
-
-```bash
-cd SlopePing
-source .venv/bin/activate
-python run_checker.py
-```
-
-The terminal prints each step, including login, navigation, parsing, screenshot
-saving, comparison, and notification status.
-
-If a lesson is pending, the terminal also prints copy-ready commands for that
-lesson.
-
-## Confirm Or Decline From The CLI
-
-SlopePing can execute a confirmation action only when you explicitly run one of
-these commands:
+Use the CLI actions like this:
 
 ```bash
 python run_checker.py --accept "LESSON_KEY_OR_ID"
 python run_checker.py --decline "LESSON_KEY_OR_ID"
 ```
 
-Use the `lesson_id` shown in the ntfy or console message, for example:
+If a lesson needs action, the notification title is `SlopePing: action needed`
+and the message shows the available actions. The ntfy action opens the control
+page; it does not directly accept or decline the lesson.
 
-```text
-17.06.2026|14:00|16:00|Skischule|Extraschicht Skischule
-```
-
-`--accept` selects `Bestätigen`. `--decline` selects `Absagen`. SlopePing then
-clicks `Speichern`, saves before/after screenshots, and writes `actions.log`.
-
-Safety rules:
-
-- Only pending lessons can be acted on.
-- If the lesson, dropdown, action, or `Speichern` button is missing, SlopePing
-  prints a clear error and stops.
-- ntfy notifications never trigger actions by themselves.
+For safer phone access, the webhook server listens on `127.0.0.1` by default.
+Use `WEBHOOK_HOST=0.0.0.0` only on a trusted local network, Tailscale, or a
+secured tunnel.
 
 ## Files Created At Runtime
 
 - `state.json`: last known lesson state
 - `actions.log`: manual accept/decline action history
+- `calendar_events/`: ICS calendar files created by webhook actions
 - `screenshots/`: success and error screenshots
 
-Both are ignored by Git.
+All are ignored by Git.
 
 ## Troubleshooting
 

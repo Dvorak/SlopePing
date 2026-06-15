@@ -13,6 +13,8 @@ Allrounder-Coach-Portal zugeschnitten.
 - `run_checker.py`
   Einstiegspunkt. Fügt `src/` zu `sys.path` hinzu und ruft
   `slopeping.checker.run()` auf.
+- `scripts/webhook_server.py`
+  Startet den FastAPI Webhook- und Kontrollseiten-Server.
 - `src/slopeping/config.py`
   Lädt `.env` und erstellt typisierte Einstellungen.
 - `src/slopeping/browser.py`
@@ -24,6 +26,11 @@ Allrounder-Coach-Portal zugeschnitten.
   aktuellen Lauf mit dem vorherigen.
 - `src/slopeping/notify.py`
   Sendet ntfy-Benachrichtigungen mit Console-Fallback.
+- `src/slopeping/webhook.py`
+  Stellt die mobile Kontrollseite, Kalenderexport und geprüfte Remote-Aktionen
+  bereit.
+- `src/slopeping/ics_generator.py`
+  Erstellt `.ics` Kalenderereignisse mit Europe/Berlin Zeitzone.
 
 ## Ablauf
 
@@ -126,6 +133,23 @@ python run_checker.py --accept "LESSON_ID"
 python run_checker.py --decline "LESSON_ID"
 ```
 
+## Mobile Kontrollseite
+
+Wenn `ACTION_WEBHOOK_BASE_URL` und `ACTION_WEBHOOK_TOKEN` konfiguriert sind,
+fügt ntfy sichere Links hinzu:
+
+- `Open SlopePing`: öffnet `/control?token=...`
+- `Open calendar page`: öffnet `/calendar?token=...`
+
+Die Benachrichtigung führt Bestätigen oder Absagen nicht direkt aus. Kontroll-
+und Kalenderseite lesen standardmäßig den zuletzt gespeicherten `state.json`
+Snapshot, sodass das Öffnen der Seite Playwright nicht startet.
+`/actions/execute` meldet sich nach der zweiten Bestätigung an, prüft die Live-
+Allrounder-Seite erneut und speichert erst danach.
+
+Der Webhook-Aktionspfad verwendet eine prozesslokale Sperre, sodass immer nur
+eine Remote-Aktion gleichzeitig laufen kann.
+
 ## ntfy-Benachrichtigung
 
 Das Projekt sendet Plain Text per POST an:
@@ -153,6 +177,10 @@ Nachricht in der Konsole ausgegeben und das Programm läuft weiter.
   Letzter erfolgreich gelesener Kursstand. Von Git ignoriert.
 - `screenshots/`
   Erfolgs- und Fehler-Screenshots. Von Git ignoriert.
+- `actions.log`
+  JSON-Line-Historie für CLI- und Webhook-Aktionen. Von Git ignoriert.
+- `calendar_events/`
+  Generierte `.ics` Dateien für Webhook-Aktionen. Von Git ignoriert.
 
 ## Sicherheit
 
@@ -161,3 +189,7 @@ Nachricht in der Konsole ausgegeben und das Programm läuft weiter.
 - Der öffentliche Dienst `ntfy.sh` schützt Topics standardmäßig nicht mit einem
   Passwort.
 - Das Skript druckt Fortschrittsmeldungen, aber kein Passwort.
+- Der Webhook-Server hört standardmäßig auf `127.0.0.1`. `0.0.0.0` nur in
+  einem vertrauenswürdigen Netzwerk oder hinter einem gesicherten Tunnel nutzen.
+- Der Webhook-Token steht weiterhin in URLs. Den Server daher nicht ohne HTTPS
+  und stärkere Authentifizierung öffentlich erreichbar machen.
