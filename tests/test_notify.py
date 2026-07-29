@@ -1,8 +1,11 @@
+import urllib.error
+
 from slopeping.notify import (
     _build_calendar_action,
     _build_control_action,
     _format_lessons,
     _notification_subject,
+    _send_ntfy,
 )
 from slopeping.state import ScheduleRecord
 
@@ -55,3 +58,32 @@ def test_control_links_require_both_url_and_token(monkeypatch) -> None:
 
     assert _build_control_action() == []
     assert _build_calendar_action() == []
+
+
+def test_ntfy_retries_transient_errors(monkeypatch) -> None:
+    calls = []
+    delays = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+    def urlopen(request, timeout):
+        calls.append((request, timeout))
+        if len(calls) == 1:
+            raise urllib.error.URLError("temporary")
+        return Response()
+
+    monkeypatch.setenv("NTFY_SERVER", "https://example.test")
+    monkeypatch.setenv("NTFY_TOPIC", "topic")
+    monkeypatch.setenv("NTFY_RETRY_ATTEMPTS", "2")
+    monkeypatch.setenv("NTFY_RETRY_DELAY_SECONDS", "0.5")
+    monkeypatch.setattr("slopeping.notify.urllib.request.urlopen", urlopen)
+    monkeypatch.setattr("slopeping.notify.time.sleep", delays.append)
+
+    assert _send_ntfy("subject", "body", include_actions=False) is True
+    assert len(calls) == 2
+    assert delays == [0.5]

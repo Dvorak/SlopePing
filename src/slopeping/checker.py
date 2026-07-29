@@ -1,14 +1,28 @@
 from __future__ import annotations
 
 import traceback
+from time import monotonic
+
+from playwright.sync_api import Error as PlaywrightError
 
 from .actions import perform_lesson_action
 from .browser import BrowserSession
 from .config import Settings, load_settings
 from .execution_lock import LockUnavailableError, execution_lock
-from .health import guard_empty_schedule
-from .notify import notify_new_lessons, notify_run_report
+from .health import (
+    guard_empty_schedule,
+    record_run_failure,
+    record_run_started,
+    record_run_success,
+)
+from .notify import (
+    notify_new_lessons,
+    notify_run_failure,
+    notify_run_recovery,
+    notify_run_report,
+)
 from .parser import parse_overview_records
+from .retry import retry_call
 from .state import ScheduleRecord, StateChange, diff_records, load_records, save_records
 
 
@@ -31,66 +45,123 @@ def _run_locked(
     action: str | None,
     lesson_key: str | None,
 ) -> int:
-    with BrowserSession(settings) as browser:
+    if action is not None and lesson_key is not None:
+        return _run_action(settings, action, lesson_key)
+    return _run_check(settings)
+
+
+def _run_action(settings: Settings, action: str, lesson_key: str) -> int:
+    browser = BrowserSession(settings)
+    try:
+        with browser:
+            try:
+                print("[step] Login and open schedule page.", flush=True)
+                page = browser.login_and_open_schedule()
+                print(f"[action] Running requested action: {action}", flush=True)
+                return 0 if perform_lesson_action(page, settings, action, lesson_key) else 1
+            except Exception as exc:
+                _report_error(browser, exc)
+                return 1
+    except Exception as exc:
+        _report_error(None, exc)
+        return 1
+
+
+def _run_check(settings: Settings) -> int:
+    started = monotonic()
+    record_run_started(settings.health_path)
+    try:
+        records, screenshot = retry_call(
+            lambda: _collect_schedule(settings),
+            attempts=settings.check_retry_attempts,
+            delay_seconds=settings.check_retry_delay_seconds,
+            retry_on=(PlaywrightError, OSError),
+            label="schedule collection",
+        )
+        _process_records(settings, records, screenshot)
+    except Exception as exc:
+        duration = monotonic() - started
+        health = record_run_failure(settings.health_path, exc, duration)
+        _report_error(None, exc)
+        if health.consecutive_failures in {1, settings.failure_alert_threshold}:
+            notify_run_failure(exc, health.consecutive_failures)
+        return 1
+
+    duration = monotonic() - started
+    previous_failures = record_run_success(settings.health_path, len(records), duration)
+    if previous_failures:
+        notify_run_recovery(previous_failures, len(records))
+    print("[done] Checker completed successfully.", flush=True)
+    return 0
+
+
+def _collect_schedule(settings: Settings) -> tuple[list[ScheduleRecord], str]:
+    browser = BrowserSession(settings)
+    with browser:
         try:
             print("[step] Login and open schedule page.", flush=True)
             page = browser.login_and_open_schedule()
-            if action is not None and lesson_key is not None:
-                print(f"[action] Running requested action: {action}", flush=True)
-                return 0 if perform_lesson_action(page, settings, action, lesson_key) else 1
-
             print("[step] Parse Übersicht schedule records.", flush=True)
             records = parse_overview_records(page, settings.selectors)
             print(f"[step] Parsed {len(records)} schedule record(s).", flush=True)
             print("[step] Save success screenshot.", flush=True)
             screenshot = browser.save_screenshot("arbeitsplan")
-            print(f"[step] Load previous records from {settings.state_path}.", flush=True)
-            previous_records = load_records(settings.state_path)
-            print(f"[step] Loaded {len(previous_records)} previous record(s).", flush=True)
-            guard_empty_schedule(
-                settings.health_path,
-                previous_count=len(previous_records),
-                current_count=len(records),
-                required_confirmations=settings.empty_confirmation_runs,
-            )
-            print("[step] Compare current records with previous state.", flush=True)
-            changes = diff_records(previous_records, records)
-            _print_result(records, changes, str(screenshot))
-            new_lessons = [change.current for change in changes if change.kind == "new"]
-            print(f"[step] New lessons to notify: {len(new_lessons)}.", flush=True)
-            pending_lessons = [
-                record for record in records if record.confirmation_status == "pending"
-            ]
-            print(
-                f"[step] Pending lessons needing action: {len(pending_lessons)}.",
-                flush=True,
-            )
-            _print_action_hints(pending_lessons)
-            if _notify_always_send_report():
-                print(
-                    "[notify] NOTIFY_ALWAYS_SEND_REPORT is enabled; sending run report.",
-                    flush=True,
-                )
-                notify_run_report(records, new_lessons)
-            else:
-                print(
-                    "[notify] Sending notification if new or pending lessons exist.",
-                    flush=True,
-                )
-                notify_new_lessons(_merge_lessons(new_lessons, pending_lessons))
-            print(f"[step] Save current records to {settings.state_path}.", flush=True)
-            save_records(settings.state_path, records)
-            print("[done] Checker completed successfully.", flush=True)
-            return 0
-        except Exception as exc:
-            print(f"ERROR: {exc}")
-            print(traceback.format_exc())
-            try:
-                error_screenshot = browser.save_screenshot("error")
-                print(f"Saved error screenshot: {error_screenshot}")
-            except Exception:
-                print("Could not save an error screenshot because the browser was not available.")
-            return 1
+            return records, str(screenshot)
+        except Exception:
+            _save_error_screenshot(browser)
+            raise
+
+
+def _process_records(settings: Settings, records: list[ScheduleRecord], screenshot: str) -> None:
+    print(f"[step] Load previous records from {settings.state_path}.", flush=True)
+    previous_records = load_records(settings.state_path)
+    print(f"[step] Loaded {len(previous_records)} previous record(s).", flush=True)
+    guard_empty_schedule(
+        settings.health_path,
+        previous_count=len(previous_records),
+        current_count=len(records),
+        required_confirmations=settings.empty_confirmation_runs,
+    )
+    print("[step] Compare current records with previous state.", flush=True)
+    changes = diff_records(previous_records, records)
+    _print_result(records, changes, screenshot)
+    new_lessons = [change.current for change in changes if change.kind == "new"]
+    print(f"[step] New lessons to notify: {len(new_lessons)}.", flush=True)
+    pending_lessons = [record for record in records if record.confirmation_status == "pending"]
+    print(
+        f"[step] Pending lessons needing action: {len(pending_lessons)}.",
+        flush=True,
+    )
+    _print_action_hints(pending_lessons)
+    if _notify_always_send_report():
+        print(
+            "[notify] NOTIFY_ALWAYS_SEND_REPORT is enabled; sending run report.",
+            flush=True,
+        )
+        notify_run_report(records, new_lessons)
+    else:
+        print(
+            "[notify] Sending notification if new or pending lessons exist.",
+            flush=True,
+        )
+        notify_new_lessons(_merge_lessons(new_lessons, pending_lessons))
+    print(f"[step] Save current records to {settings.state_path}.", flush=True)
+    save_records(settings.state_path, records)
+
+
+def _report_error(browser: BrowserSession | None, exc: BaseException) -> None:
+    print(f"ERROR: {exc}")
+    print(traceback.format_exc())
+    if browser is not None:
+        _save_error_screenshot(browser)
+
+
+def _save_error_screenshot(browser: BrowserSession) -> None:
+    try:
+        error_screenshot = browser.save_screenshot("error")
+        print(f"Saved error screenshot: {error_screenshot}")
+    except Exception:
+        print("Could not save an error screenshot because the browser was not available.")
 
 
 def _print_result(

@@ -31,6 +31,9 @@ class Settings:
     health_path: Path
     lock_path: Path
     empty_confirmation_runs: int
+    check_retry_attempts: int
+    check_retry_delay_seconds: float
+    failure_alert_threshold: int
     selectors: Selectors
 
 
@@ -49,6 +52,16 @@ def _int_from_env(name: str, default: int) -> int:
         return int(value)
     except ValueError as exc:
         raise ValueError(f"{name} must be an integer, got {value!r}") from exc
+
+
+def _float_from_env(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number, got {value!r}") from exc
 
 
 def load_settings(env_file: str | Path = ".env") -> Settings:
@@ -84,5 +97,11 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         health_path=Path(os.getenv("SKI_HEALTH_PATH", ".slopeping-health.json")),
         lock_path=Path(os.getenv("SKI_LOCK_PATH", ".slopeping.lock")),
         empty_confirmation_runs=max(2, _int_from_env("SKI_EMPTY_CONFIRMATION_RUNS", 2)),
+        check_retry_attempts=max(1, _int_from_env("SKI_CHECK_RETRY_ATTEMPTS", 2)),
+        check_retry_delay_seconds=max(
+            0.0,
+            _float_from_env("SKI_CHECK_RETRY_DELAY_SECONDS", 5.0),
+        ),
+        failure_alert_threshold=max(1, _int_from_env("SKI_FAILURE_ALERT_THRESHOLD", 2)),
         selectors=selectors,
     )

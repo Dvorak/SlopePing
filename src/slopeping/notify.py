@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -18,7 +19,6 @@ def notify_new_lessons(new_lessons: list[Lesson]) -> None:
     _send_notification(
         subject=_notification_subject(new_lessons),
         body=_format_lessons(new_lessons),
-        lessons_for_console=new_lessons,
     )
 
 
@@ -33,15 +33,40 @@ def notify_run_report(current_lessons: list[Lesson], new_lessons: list[Lesson]) 
     _send_notification(
         subject=subject,
         body=_format_run_report(current_lessons, new_lessons),
-        lessons_for_console=current_lessons,
     )
 
 
-def _send_notification(subject: str, body: str, lessons_for_console: list[Lesson]) -> None:
+def notify_run_failure(error: BaseException, consecutive_failures: int) -> None:
+    _send_notification(
+        subject=f"SlopePing failure ({consecutive_failures} consecutive)",
+        body="\n".join(
+            [
+                "The scheduled checker did not complete.",
+                f"Error type: {type(error).__name__}",
+                f"Error: {error}",
+                "The last valid schedule state was preserved.",
+            ]
+        ),
+        include_actions=False,
+    )
+
+
+def notify_run_recovery(previous_failures: int, record_count: int) -> None:
+    _send_notification(
+        subject="SlopePing recovered",
+        body=(
+            f"The checker completed successfully after {previous_failures} failed run(s). "
+            f"Parsed {record_count} lesson(s)."
+        ),
+        include_actions=False,
+    )
+
+
+def _send_notification(subject: str, body: str, include_actions: bool = True) -> None:
     channel = os.getenv("NOTIFY_CHANNEL", "console").strip().casefold() or "console"
 
     if channel == "ntfy":
-        if _send_ntfy(subject, body):
+        if _send_ntfy(subject, body, include_actions=include_actions):
             print("[notify] ntfy notification sent.", flush=True)
             return
         _notify_console(subject, body)
@@ -50,8 +75,7 @@ def _send_notification(subject: str, body: str, lessons_for_console: list[Lesson
     if channel != "console":
         print(f"WARNING: Unknown NOTIFY_CHANNEL={channel!r}; falling back to console.")
 
-    if lessons_for_console:
-        _notify_console(subject, body)
+    _notify_console(subject, body)
 
 
 def _notify_console(subject: str, body: str) -> None:
@@ -59,7 +83,7 @@ def _notify_console(subject: str, body: str) -> None:
     print(body)
 
 
-def _send_ntfy(subject: str, body: str) -> bool:
+def _send_ntfy(subject: str, body: str, include_actions: bool = True) -> bool:
     server = os.getenv("NTFY_SERVER", "").strip().rstrip("/")
     topic = os.getenv("NTFY_TOPIC", "").strip()
 
@@ -79,8 +103,10 @@ def _send_ntfy(subject: str, body: str) -> bool:
         "Content-Type": "text/plain; charset=utf-8",
     }
 
-    actions = _build_control_action()
-    actions.extend(_build_calendar_action())
+    actions = []
+    if include_actions:
+        actions.extend(_build_control_action())
+        actions.extend(_build_calendar_action())
 
     if actions:
         headers["Actions"] = ";".join(actions)
@@ -92,14 +118,26 @@ def _send_ntfy(subject: str, body: str) -> bool:
         headers=headers,
     )
 
-    try:
-        with urllib.request.urlopen(request, timeout=20):
-            pass
-    except (urllib.error.URLError, OSError) as exc:
-        print(f"ERROR: ntfy notification failed: {exc}")
-        return False
+    attempts = max(1, _int_env("NTFY_RETRY_ATTEMPTS", 3))
+    base_delay = max(0.0, _float_env("NTFY_RETRY_DELAY_SECONDS", 2.0))
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=20):
+                pass
+            return True
+        except (urllib.error.URLError, OSError) as exc:
+            if attempt >= attempts:
+                print(f"ERROR: ntfy notification failed after {attempts} attempt(s): {exc}")
+                return False
+            delay = base_delay * (2 ** (attempt - 1))
+            print(
+                f"[notify] ntfy attempt {attempt}/{attempts} failed: {exc}. "
+                f"Retrying in {delay:.1f}s.",
+                flush=True,
+            )
+            time.sleep(delay)
 
-    return True
+    return False
 
 
 def _build_control_action() -> list[str]:
@@ -176,3 +214,17 @@ def _format_actions(actions: list[str] | None) -> str:
     if not actions:
         return "-"
     return ", ".join(actions)
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _float_env(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default

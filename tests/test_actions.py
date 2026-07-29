@@ -59,6 +59,9 @@ def settings(tmp_path: Path) -> Settings:
         health_path=tmp_path / "health.json",
         lock_path=tmp_path / "slopeping.lock",
         empty_confirmation_runs=2,
+        check_retry_attempts=2,
+        check_retry_delay_seconds=0,
+        failure_alert_threshold=2,
         selectors=Selectors(),
     )
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,49 @@ def guard_empty_schedule(
     save_health(path, _replace_health(health, consecutive_empty_results=0))
 
 
+def record_run_started(path: Path) -> RunHealth:
+    health = load_health(path)
+    updated = replace(health, last_started_at=_now())
+    save_health(path, updated)
+    return updated
+
+
+def record_run_success(path: Path, record_count: int, duration_seconds: float) -> int:
+    health = load_health(path)
+    previous_failures = health.consecutive_failures
+    now = _now()
+    updated = replace(
+        health,
+        consecutive_failures=0,
+        consecutive_empty_results=0,
+        last_completed_at=now,
+        last_success_at=now,
+        last_error_type=None,
+        last_error_message=None,
+        last_record_count=record_count,
+        last_duration_seconds=round(duration_seconds, 3),
+    )
+    save_health(path, updated)
+    return previous_failures
+
+
+def record_run_failure(path: Path, error: BaseException, duration_seconds: float) -> RunHealth:
+    health = load_health(path)
+    now = _now()
+    updated = replace(
+        health,
+        consecutive_failures=health.consecutive_failures + 1,
+        last_completed_at=now,
+        last_failure_at=now,
+        last_error_type=type(error).__name__,
+        last_error_message=str(error)[:1000],
+        last_record_count=None,
+        last_duration_seconds=round(duration_seconds, 3),
+    )
+    save_health(path, updated)
+    return updated
+
+
 def _health_from_dict(raw: dict[str, Any]) -> RunHealth:
     return RunHealth(
         version=_as_int(raw.get("version"), 1),
@@ -89,9 +133,11 @@ def _health_from_dict(raw: dict[str, Any]) -> RunHealth:
 
 
 def _replace_health(health: RunHealth, **changes: Any) -> RunHealth:
-    values = asdict(health)
-    values.update(changes)
-    return RunHealth(**values)
+    return replace(health, **changes)
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 def _as_int(value: Any, default: int) -> int:
