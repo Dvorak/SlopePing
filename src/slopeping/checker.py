@@ -4,7 +4,8 @@ import traceback
 
 from .actions import perform_lesson_action
 from .browser import BrowserSession
-from .config import load_settings
+from .config import Settings, load_settings
+from .execution_lock import LockUnavailableError, execution_lock
 from .notify import notify_new_lessons, notify_run_report
 from .parser import parse_overview_records
 from .state import ScheduleRecord, StateChange, diff_records, load_records, save_records
@@ -15,6 +16,20 @@ def run(action: str | None = None, lesson_key: str | None = None) -> int:
     settings = load_settings()
     print("[start] Settings loaded.", flush=True)
 
+    purpose = f"cli-{action}" if action else "checker"
+    try:
+        with execution_lock(settings.lock_path, purpose):
+            return _run_locked(settings, action, lesson_key)
+    except LockUnavailableError as exc:
+        print(f"[lock] {exc}", flush=True)
+        return 75
+
+
+def _run_locked(
+    settings: Settings,
+    action: str | None,
+    lesson_key: str | None,
+) -> int:
     with BrowserSession(settings) as browser:
         try:
             print("[step] Login and open schedule page.", flush=True)

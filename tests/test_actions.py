@@ -56,6 +56,7 @@ def settings(tmp_path: Path) -> Settings:
         navigation_timeout_ms=100,
         screenshots_dir=tmp_path / "screenshots",
         state_path=tmp_path / "state.json",
+        lock_path=tmp_path / "slopeping.lock",
         selectors=Selectors(),
     )
 

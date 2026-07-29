@@ -28,6 +28,7 @@ class Settings:
     navigation_timeout_ms: int
     screenshots_dir: Path
     state_path: Path
+    lock_path: Path
     selectors: Selectors
 
 
@@ -78,5 +79,6 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         navigation_timeout_ms=_int_from_env("SKI_NAVIGATION_TIMEOUT_MS", 30000),
         screenshots_dir=Path(os.getenv("SKI_SCREENSHOTS_DIR", "screenshots")),
         state_path=Path(os.getenv("SKI_STATE_PATH", "state.json")),
+        lock_path=Path(os.getenv("SKI_LOCK_PATH", ".slopeping.lock")),
         selectors=selectors,
     )

@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, Response
 from .actions import perform_lesson_action
 from .browser import BrowserSession
 from .config import load_settings
+from .execution_lock import LockUnavailableError, execution_lock
 from .ics_generator import build_ics_bytes, build_ics_filename, create_ics_event
 from .parser import parse_overview_records
 from .state import ScheduleRecord, load_records, save_records
@@ -142,7 +143,10 @@ def _handle_action(action: str, lesson_id: str, token: str) -> dict:
     )
     try:
         settings = load_settings()
-        with BrowserSession(settings) as browser:
+        with (
+            execution_lock(settings.lock_path, f"webhook-{action}"),
+            BrowserSession(settings) as browser,
+        ):
             page = browser.login_and_open_schedule()
             success = perform_lesson_action(page, settings, action, lesson_id)
             if not success:
@@ -164,6 +168,8 @@ def _handle_action(action: str, lesson_id: str, token: str) -> dict:
                 result["ics_file"] = str(ics_path)
             save_records(settings.state_path, records)
             return result
+    except LockUnavailableError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except HTTPException:
         raise
     except Exception as exc:
