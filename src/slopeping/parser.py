@@ -23,6 +23,20 @@ EXPECTED_HEADERS = {
     "bestaetigung": {"bestätigung", "bestaetigung", "bestatigung", "status"},
 }
 REQUIRED_HEADERS = frozenset(EXPECTED_HEADERS)
+REQUIRED_RECORD_FIELDS = (
+    "tag",
+    "von",
+    "bis",
+    "raum_ort",
+    "trainingsbezeichnung",
+)
+EMPTY_ROW_MARKERS = (
+    "keine daten",
+    "keine einträge",
+    "keine eintraege",
+    "keine kurse",
+    "keine termine",
+)
 
 
 class ParseError(RuntimeError):
@@ -67,9 +81,11 @@ def parse_overview_rows(page: Page, selectors: Selectors) -> list[ParsedSchedule
         cells = _cell_texts(row)
         if not cells or _looks_like_header(cells):
             continue
+        if _looks_like_empty_message(cells):
+            continue
         record = _record_from_row(headers, cells, row)
-        if any(record.__dict__.values()):
-            parsed_rows.append(ParsedScheduleRow(record=record, row=row, headers=headers))
+        _validate_record(record, index)
+        parsed_rows.append(ParsedScheduleRow(record=record, row=row, headers=headers))
 
     print(f"[parser] Parsed {len(parsed_rows)} lesson record(s).", flush=True)
     return parsed_rows
@@ -207,3 +223,16 @@ def _canonical_header(value: str) -> str | None:
 def _looks_like_header(cells: list[str]) -> bool:
     canonical = {_canonical_header(cell) for cell in cells}
     return "tag" in canonical and ("von" in canonical or "bis" in canonical)
+
+
+def _looks_like_empty_message(cells: list[str]) -> bool:
+    combined = " ".join(cells).casefold()
+    return any(marker in combined for marker in EMPTY_ROW_MARKERS)
+
+
+def _validate_record(record: ScheduleRecord, row_index: int) -> None:
+    missing = [field for field in REQUIRED_RECORD_FIELDS if not getattr(record, field).strip()]
+    if missing:
+        raise ParseError(
+            f"Schedule row {row_index + 1} is missing required values: {', '.join(missing)}."
+        )

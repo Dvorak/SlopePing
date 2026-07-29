@@ -46,6 +46,26 @@ def test_missing_required_headers_fail_closed(page: Page) -> None:
         parse_overview_records(page, Selectors())
 
 
+def test_incomplete_data_row_fails_closed(page: Page) -> None:
+    page.set_content(
+        """
+        <table id="TAB">
+          <thead><tr>
+            <th>Tag</th><th>Von</th><th>Bis</th><th>Raum/Ort</th>
+            <th>Trainingsbezeichnung</th><th>Bestätigung</th>
+          </tr></thead>
+          <tbody><tr>
+            <td>30.07.2026</td><td>09:00</td><td></td><td>Skihalle</td>
+            <td>Gruppenkurs</td><td>Bestätigt</td>
+          </tr></tbody>
+        </table>
+        """
+    )
+
+    with pytest.raises(ParseError, match="missing required values: bis"):
+        parse_overview_records(page, Selectors())
+
+
 @pytest.mark.parametrize("text", ["Bestätigt", "Bestaetigt", "  BESTÄTIGT  "])
 def test_confirmation_text_is_recognized_without_select(text: str) -> None:
     assert _confirmation_details(text, None) == ("confirmed", [])

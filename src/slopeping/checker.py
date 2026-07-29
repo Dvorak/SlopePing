@@ -6,6 +6,7 @@ from .actions import perform_lesson_action
 from .browser import BrowserSession
 from .config import Settings, load_settings
 from .execution_lock import LockUnavailableError, execution_lock
+from .health import guard_empty_schedule
 from .notify import notify_new_lessons, notify_run_report
 from .parser import parse_overview_records
 from .state import ScheduleRecord, StateChange, diff_records, load_records, save_records
@@ -46,6 +47,12 @@ def _run_locked(
             print(f"[step] Load previous records from {settings.state_path}.", flush=True)
             previous_records = load_records(settings.state_path)
             print(f"[step] Loaded {len(previous_records)} previous record(s).", flush=True)
+            guard_empty_schedule(
+                settings.health_path,
+                previous_count=len(previous_records),
+                current_count=len(records),
+                required_confirmations=settings.empty_confirmation_runs,
+            )
             print("[step] Compare current records with previous state.", flush=True)
             changes = diff_records(previous_records, records)
             _print_result(records, changes, str(screenshot))
