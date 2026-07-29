@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -86,7 +86,13 @@ def load_records(path: Path) -> list[ScheduleRecord]:
     with path.open("r", encoding="utf-8") as handle:
         raw = json.load(handle)
 
-    records = raw.get("records", raw if isinstance(raw, list) else [])
+    if isinstance(raw, list):
+        records = raw
+    elif isinstance(raw, dict):
+        records = raw.get("records", [])
+    else:
+        raise ValueError(f"State file {path} is invalid: expected an object or a list")
+
     if not isinstance(records, list):
         raise ValueError(f"State file {path} is invalid: records must be a list")
 
@@ -96,7 +102,7 @@ def load_records(path: Path) -> list[ScheduleRecord]:
 def save_records(path: Path, records: list[ScheduleRecord]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "last_checked_at": datetime.now(timezone.utc).isoformat(),
+        "last_checked_at": datetime.now(UTC).isoformat(),
         "records": [asdict(record) for record in records],
     }
     tmp_path = path.with_suffix(path.suffix + ".tmp")
@@ -111,9 +117,10 @@ def diff_records(
     current_records: list[ScheduleRecord],
 ) -> list[StateChange]:
     previous_by_key = {record.key: record for record in previous_records}
+    current_by_key = {record.key: record for record in current_records}
     changes: list[StateChange] = []
 
-    for current in current_records:
+    for current in current_by_key.values():
         previous = previous_by_key.get(current.key)
         if previous is None:
             changes.append(StateChange(kind="new", previous=None, current=current))

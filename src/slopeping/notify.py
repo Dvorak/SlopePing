@@ -8,7 +8,6 @@ from typing import TypeAlias
 
 from .state import ScheduleRecord
 
-
 Lesson: TypeAlias = ScheduleRecord
 
 
@@ -70,7 +69,9 @@ def _send_ntfy(subject: str, body: str) -> bool:
     if not topic:
         missing.append("NTFY_TOPIC")
     if missing:
-        print(f"WARNING: Missing ntfy notification config: {', '.join(missing)}. Falling back to console.")
+        print(
+            f"WARNING: Missing ntfy notification config: {', '.join(missing)}. Falling back to console."
+        )
         return False
 
     headers = {
@@ -136,7 +137,9 @@ def _pending_lessons(lessons: list[Lesson]) -> list[Lesson]:
 
 
 def _format_run_report(current_lessons: list[Lesson], new_lessons: list[Lesson]) -> str:
-    current_text = _format_lessons(current_lessons) if current_lessons else "No current lessons found."
+    current_text = (
+        _format_lessons(current_lessons) if current_lessons else "No current lessons found."
+    )
     new_text = _format_lessons(new_lessons) if new_lessons else "No new lessons detected."
     return "\n\n".join(
         [

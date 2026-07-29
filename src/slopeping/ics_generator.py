@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from icalendar import Calendar, Event
 
 from .state import ScheduleRecord
-
 
 BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -64,6 +63,8 @@ def _build_calendar(lesson: ScheduleRecord, action: str | None = None) -> Calend
 
     event_start = _parse_datetime(lesson.tag, lesson.von)
     event_end = _parse_datetime(lesson.tag, lesson.bis)
+    if event_end <= event_start:
+        event_end += timedelta(days=1)
 
     event.add("summary", lesson.trainingsbezeichnung)
     event.add("location", lesson.raum_ort)

@@ -80,4 +80,3 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         state_path=Path(os.getenv("SKI_STATE_PATH", "state.json")),
         selectors=selectors,
     )
-

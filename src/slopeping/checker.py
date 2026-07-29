@@ -36,14 +36,25 @@ def run(action: str | None = None, lesson_key: str | None = None) -> int:
             _print_result(records, changes, str(screenshot))
             new_lessons = [change.current for change in changes if change.kind == "new"]
             print(f"[step] New lessons to notify: {len(new_lessons)}.", flush=True)
-            pending_lessons = [record for record in records if record.confirmation_status == "pending"]
-            print(f"[step] Pending lessons needing action: {len(pending_lessons)}.", flush=True)
+            pending_lessons = [
+                record for record in records if record.confirmation_status == "pending"
+            ]
+            print(
+                f"[step] Pending lessons needing action: {len(pending_lessons)}.",
+                flush=True,
+            )
             _print_action_hints(pending_lessons)
             if _notify_always_send_report():
-                print("[notify] NOTIFY_ALWAYS_SEND_REPORT is enabled; sending run report.", flush=True)
+                print(
+                    "[notify] NOTIFY_ALWAYS_SEND_REPORT is enabled; sending run report.",
+                    flush=True,
+                )
                 notify_run_report(records, new_lessons)
             else:
-                print("[notify] Sending notification if new or pending lessons exist.", flush=True)
+                print(
+                    "[notify] Sending notification if new or pending lessons exist.",
+                    flush=True,
+                )
                 notify_new_lessons(_merge_lessons(new_lessons, pending_lessons))
             print(f"[step] Save current records to {settings.state_path}.", flush=True)
             save_records(settings.state_path, records)
@@ -60,7 +71,9 @@ def run(action: str | None = None, lesson_key: str | None = None) -> int:
             return 1
 
 
-def _print_result(records: list[ScheduleRecord], changes: list[StateChange], screenshot: str) -> None:
+def _print_result(
+    records: list[ScheduleRecord], changes: list[StateChange], screenshot: str
+) -> None:
     print(f"Parsed {len(records)} schedule record(s).")
     print(f"Saved screenshot: {screenshot}")
 
@@ -105,13 +118,21 @@ def _print_action_hints(pending_lessons: list[ScheduleRecord]) -> None:
     for lesson in pending_lessons:
         lesson_id = lesson.lesson_id
         print("", flush=True)
-        print(f"Lesson: {lesson.tag} {lesson.von}-{lesson.bis} {lesson.trainingsbezeichnung}", flush=True)
-        print(f"Available actions: {_format_actions(lesson.available_actions)}", flush=True)
+        print(
+            f"Lesson: {lesson.tag} {lesson.von}-{lesson.bis} {lesson.trainingsbezeichnung}",
+            flush=True,
+        )
+        print(
+            f"Available actions: {_format_actions(lesson.available_actions)}",
+            flush=True,
+        )
         print(f'python run_checker.py --accept "{lesson_id}"', flush=True)
         print(f'python run_checker.py --decline "{lesson_id}"', flush=True)
 
 
-def _merge_lessons(first: list[ScheduleRecord], second: list[ScheduleRecord]) -> list[ScheduleRecord]:
+def _merge_lessons(
+    first: list[ScheduleRecord], second: list[ScheduleRecord]
+) -> list[ScheduleRecord]:
     merged: list[ScheduleRecord] = []
     seen: set[str] = set()
     for lesson in first + second:

@@ -2,8 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from typing import Self
 
-from playwright.sync_api import Browser, Locator, Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
+from playwright.sync_api import (
+    Browser,
+    Locator,
+    Page,
+    Playwright,
+    sync_playwright,
+)
+from playwright.sync_api import (
+    TimeoutError as PlaywrightTimeoutError,
+)
 
 from .config import Settings
 
@@ -11,14 +21,15 @@ from .config import Settings
 class BrowserSession:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._playwright = None
+        self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self.page: Page | None = None
 
-    def __enter__(self) -> "BrowserSession":
+    def __enter__(self) -> Self:
         print("[browser] Starting Playwright Chromium...", flush=True)
-        self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(
+        playwright = sync_playwright().start()
+        self._playwright = playwright
+        self._browser = playwright.chromium.launch(
             headless=self.settings.headless,
             slow_mo=self.settings.slow_mo_ms,
         )
@@ -44,12 +55,21 @@ class BrowserSession:
         page.goto(self.settings.login_url, wait_until="domcontentloaded")
         print(f"[login] Login page loaded: {page.url}", flush=True)
 
-        print(f"[login] Filling username field labeled {selectors.username_label!r}.", flush=True)
+        print(
+            f"[login] Filling username field labeled {selectors.username_label!r}.",
+            flush=True,
+        )
         page.get_by_label(selectors.username_label).fill(self.settings.username)
-        print(f"[login] Filling password field labeled {selectors.password_label!r}.", flush=True)
+        print(
+            f"[login] Filling password field labeled {selectors.password_label!r}.",
+            flush=True,
+        )
         page.get_by_label(selectors.password_label).fill(self.settings.password)
 
-        print(f"[login] Clicking login button {selectors.login_button_name!r}.", flush=True)
+        print(
+            f"[login] Clicking login button {selectors.login_button_name!r}.",
+            flush=True,
+        )
         self._click_and_wait(page, page.get_by_role("button", name=selectors.login_button_name))
         print(f"[login] Login click completed. Current URL: {page.url}", flush=True)
 
@@ -71,24 +91,39 @@ class BrowserSession:
     def _open_schedule(self, page: Page) -> Page:
         selectors = self.settings.selectors
 
-        print(f"[navigation] Looking for menu group text {selectors.my_data_text!r}.", flush=True)
+        print(
+            f"[navigation] Looking for menu group text {selectors.my_data_text!r}.",
+            flush=True,
+        )
         my_data = page.get_by_text(selectors.my_data_text, exact=False)
-        print(f"[navigation] Found {my_data.count()} {selectors.my_data_text!r} match(es).", flush=True)
+        print(
+            f"[navigation] Found {my_data.count()} {selectors.my_data_text!r} match(es).",
+            flush=True,
+        )
         if my_data.count() > 0:
             try:
                 print(f"[navigation] Clicking {selectors.my_data_text!r}.", flush=True)
                 my_data.first.click(timeout=5000)
             except PlaywrightTimeoutError:
-                print(f"[navigation] {selectors.my_data_text!r} was not clickable; continuing.", flush=True)
+                print(
+                    f"[navigation] {selectors.my_data_text!r} was not clickable; continuing.",
+                    flush=True,
+                )
 
         schedule = page.get_by_text(selectors.schedule_text, exact=False)
-        print(f"[navigation] Found {schedule.count()} {selectors.schedule_text!r} match(es).", flush=True)
+        print(
+            f"[navigation] Found {schedule.count()} {selectors.schedule_text!r} match(es).",
+            flush=True,
+        )
         print(f"[navigation] Clicking {selectors.schedule_text!r}.", flush=True)
         page = self._click_schedule_and_get_page(page, schedule.first)
         self.page = page
         print(f"[navigation] Schedule click completed. Active URL: {page.url}", flush=True)
 
-        print("[navigation] Waiting for schedule table #TAB or Übersicht text.", flush=True)
+        print(
+            "[navigation] Waiting for schedule table #TAB or Übersicht text.",
+            flush=True,
+        )
         if self._wait_for_schedule_content(page):
             print("[navigation] Schedule content is visible.", flush=True)
             return page
@@ -96,7 +131,9 @@ class BrowserSession:
         print("[navigation] Schedule content was not found before timeout.", flush=True)
         print(f"[navigation] Current URL: {page.url}", flush=True)
         print(f"[navigation] Current title: {page.title()}", flush=True)
-        raise PlaywrightTimeoutError("Could not find schedule content: neither table#TAB nor Übersicht became visible.")
+        raise PlaywrightTimeoutError(
+            "Could not find schedule content: neither table#TAB nor Übersicht became visible."
+        )
 
     def _assert_logged_in(self, page: Page) -> None:
         selectors = self.settings.selectors
@@ -117,7 +154,10 @@ class BrowserSession:
             print("[navigation] Waiting for network idle...", flush=True)
             page.wait_for_load_state("networkidle", timeout=10000)
         except PlaywrightTimeoutError:
-            print("[navigation] Network idle timed out; waiting for DOM content loaded.", flush=True)
+            print(
+                "[navigation] Network idle timed out; waiting for DOM content loaded.",
+                flush=True,
+            )
             page.wait_for_load_state("domcontentloaded", timeout=5000)
 
     def _click_schedule_and_get_page(self, page: Page, locator: Locator) -> Page:
@@ -125,7 +165,10 @@ class BrowserSession:
             with page.context.expect_page(timeout=5000) as new_page_info:
                 locator.click()
             schedule_page = new_page_info.value
-            print("[navigation] Schedule opened a new page/tab; switching to it.", flush=True)
+            print(
+                "[navigation] Schedule opened a new page/tab; switching to it.",
+                flush=True,
+            )
             self._wait_for_page_load(schedule_page)
             return schedule_page
         except PlaywrightTimeoutError:
@@ -134,7 +177,10 @@ class BrowserSession:
             if page.is_closed():
                 replacement = self._latest_open_page(page)
                 if replacement is not None:
-                    print(f"[navigation] Original page closed; switched to {replacement.url}.", flush=True)
+                    print(
+                        f"[navigation] Original page closed; switched to {replacement.url}.",
+                        flush=True,
+                    )
                     return replacement
             return page
 
@@ -143,14 +189,22 @@ class BrowserSession:
             return
         try:
             print("[navigation] Waiting for destination DOM content loaded.", flush=True)
-            page.wait_for_load_state("domcontentloaded", timeout=self.settings.navigation_timeout_ms)
+            page.wait_for_load_state(
+                "domcontentloaded", timeout=self.settings.navigation_timeout_ms
+            )
         except PlaywrightTimeoutError:
-            print("[navigation] Destination DOM content wait timed out; continuing.", flush=True)
+            print(
+                "[navigation] Destination DOM content wait timed out; continuing.",
+                flush=True,
+            )
         try:
             print("[navigation] Waiting briefly for destination network idle.", flush=True)
             page.wait_for_load_state("networkidle", timeout=10000)
         except PlaywrightTimeoutError:
-            print("[navigation] Destination network idle timed out; continuing.", flush=True)
+            print(
+                "[navigation] Destination network idle timed out; continuing.",
+                flush=True,
+            )
 
     def _latest_open_page(self, page: Page) -> Page | None:
         open_pages = [candidate for candidate in page.context.pages if not candidate.is_closed()]

@@ -3,20 +3,26 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from playwright.sync_api import Locator, Page, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import Locator, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from .config import Selectors
 from .state import ScheduleRecord
-
 
 EXPECTED_HEADERS = {
     "tag": {"tag"},
     "von": {"von"},
     "bis": {"bis"},
     "raum_ort": {"raum/ort", "raum", "ort"},
-    "trainingsbezeichnung": {"trainingsbezeichnung", "training", "kurs", "kursbezeichnung"},
+    "trainingsbezeichnung": {
+        "trainingsbezeichnung",
+        "training",
+        "kurs",
+        "kursbezeichnung",
+    },
     "bestaetigung": {"bestätigung", "bestaetigung", "bestatigung", "status"},
 }
+REQUIRED_HEADERS = frozenset(EXPECTED_HEADERS)
 
 
 class ParseError(RuntimeError):
@@ -40,14 +46,20 @@ def parse_overview_rows(page: Page, selectors: Selectors) -> list[ParsedSchedule
     try:
         headers = _extract_headers(table)
     except ParseError:
-        print("[parser] First table candidate did not match headers; searching all tables.", flush=True)
+        print(
+            "[parser] First table candidate did not match headers; searching all tables.",
+            flush=True,
+        )
         table = _find_table_by_headers(page)
         headers = _extract_headers(table)
     print(f"[parser] Header mapping: {headers}", flush=True)
     rows = table.locator("tbody tr")
     if rows.count() == 0:
         rows = table.locator("tr")
-    print(f"[parser] Found {rows.count()} table row(s), including header rows.", flush=True)
+    print(
+        f"[parser] Found {rows.count()} table row(s), including header rows.",
+        flush=True,
+    )
 
     parsed_rows: list[ParsedScheduleRow] = []
     for index in range(rows.count()):
@@ -70,7 +82,10 @@ def _find_overview_table(page: Page, selectors: Selectors) -> Locator:
         print("[parser] Using table#TAB.", flush=True)
         return table_by_id
     except PlaywrightTimeoutError:
-        print("[parser] table#TAB not visible; trying table near Übersicht text.", flush=True)
+        print(
+            "[parser] table#TAB not visible; trying table near Übersicht text.",
+            flush=True,
+        )
 
     overview = page.get_by_text(selectors.overview_text, exact=False).first
     try:
@@ -92,7 +107,7 @@ def _find_table_by_headers(page: Page) -> Locator:
             headers = _extract_headers(table)
         except ParseError:
             continue
-        if {"tag", "von", "bis", "trainingsbezeichnung"}.issubset(headers.values()):
+        if REQUIRED_HEADERS.issubset(headers.values()):
             return table
     raise ParseError("Could not find the Übersicht schedule table.")
 
@@ -108,9 +123,10 @@ def _extract_headers(table: Locator) -> dict[int, str]:
         if normalized:
             headers[index] = normalized
 
-    required = {"tag", "von", "bis", "raum_ort", "trainingsbezeichnung", "bestaetigung"}
-    if not required.intersection(headers.values()):
-        raise ParseError("The located table does not look like the Übersicht table.")
+    missing = REQUIRED_HEADERS.difference(headers.values())
+    if missing:
+        missing_text = ", ".join(sorted(missing))
+        raise ParseError(f"The Übersicht table is missing required headers: {missing_text}.")
     return headers
 
 
@@ -129,7 +145,9 @@ def _record_from_row(headers: dict[int, str], cells: list[str], row: Locator) ->
             values[field] = cell
 
     confirmation_cell = _confirmation_cell(row, headers)
-    confirmation_status, available_actions = _confirmation_details(values["bestaetigung"], confirmation_cell)
+    confirmation_status, available_actions = _confirmation_details(
+        values["bestaetigung"], confirmation_cell
+    )
     return ScheduleRecord(
         **values,
         confirmation_status=confirmation_status,

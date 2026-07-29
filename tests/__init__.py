@@ -1,0 +1,1 @@
+"""SlopePing automated tests."""

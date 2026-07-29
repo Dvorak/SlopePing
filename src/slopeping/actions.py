@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import json
+from contextlib import suppress
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from playwright.sync_api import Locator, Page, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import Locator, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from .config import Settings
 from .parser import ParsedScheduleRow, parse_overview_rows
 from .state import ScheduleRecord
-
 
 ACTION_LABELS = {
     "accept": "Bestätigen",
@@ -63,14 +64,28 @@ def perform_lesson_action(
     except Exception as exc:
         message = f"Could not select {label!r}: {exc}"
         print(f"[action] {message}", flush=True)
-        _write_action_log(action, lesson_key, record, "select_failed", message, before_screenshot=before)
+        _write_action_log(
+            action,
+            lesson_key,
+            record,
+            "select_failed",
+            message,
+            before_screenshot=before,
+        )
         return False
 
     save_button = _find_save_button(page)
     if save_button is None:
         message = "Could not find Speichern button."
         print(f"[action] {message}", flush=True)
-        _write_action_log(action, lesson_key, record, "missing_save", message, before_screenshot=before)
+        _write_action_log(
+            action,
+            lesson_key,
+            record,
+            "missing_save",
+            message,
+            before_screenshot=before,
+        )
         return False
 
     print("[action] Clicking Speichern.", flush=True)
@@ -107,7 +122,9 @@ def perform_lesson_action(
     return True
 
 
-def _find_matching_row(parsed_rows: list[ParsedScheduleRow], lesson_key: str) -> ParsedScheduleRow | None:
+def _find_matching_row(
+    parsed_rows: list[ParsedScheduleRow], lesson_key: str
+) -> ParsedScheduleRow | None:
     needle = lesson_key.strip()
     for parsed in parsed_rows:
         record = parsed.record
@@ -137,10 +154,8 @@ def _wait_after_save(page: Page) -> None:
     try:
         page.wait_for_load_state("networkidle", timeout=10000)
     except PlaywrightTimeoutError:
-        try:
+        with suppress(PlaywrightTimeoutError):
             page.wait_for_load_state("domcontentloaded", timeout=5000)
-        except PlaywrightTimeoutError:
-            pass
 
 
 def _save_action_screenshot(page: Page, settings: Settings, action: str, phase: str) -> str:
@@ -162,7 +177,7 @@ def _write_action_log(
     after_screenshot: str | None = None,
 ) -> None:
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "action": action,
         "lesson_key": lesson_key,
         "result": result,

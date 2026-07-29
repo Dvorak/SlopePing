@@ -17,7 +17,6 @@ from .ics_generator import build_ics_bytes, build_ics_filename, create_ics_event
 from .parser import parse_overview_records
 from .state import ScheduleRecord, load_records, save_records
 
-
 app = FastAPI(
     title="SlopePing Webhook",
     description="Mobile control page for SlopePing lesson actions",
@@ -34,7 +33,10 @@ def _validate_token(token: str, action: str) -> None:
         raise HTTPException(status_code=500, detail="Webhook token is not configured")
 
     if token != expected_token:
-        print(f"[webhook] Security: invalid token attempt for action={action}.", flush=True)
+        print(
+            f"[webhook] Security: invalid token attempt for action={action}.",
+            flush=True,
+        )
         raise HTTPException(status_code=403, detail="Invalid token")
 
 
@@ -132,15 +134,25 @@ def _render_lesson_details(lesson: ScheduleRecord) -> str:
         ("Status", lesson.confirmation_status),
         ("Actions", actions),
     ]
-    return "<dl>" + "".join(
-        f"<dt>{html.escape(label)}</dt><dd>{html.escape(value)}</dd>" for label, value in fields
-    ) + "</dl>"
+    return (
+        "<dl>"
+        + "".join(
+            f"<dt>{html.escape(label)}</dt><dd>{html.escape(value)}</dd>" for label, value in fields
+        )
+        + "</dl>"
+    )
 
 
-def _render_control_page(records: list[ScheduleRecord], token: str, last_checked_at: str | None) -> str:
+def _render_control_page(
+    records: list[ScheduleRecord], token: str, last_checked_at: str | None
+) -> str:
     lesson_cards = []
     for record in records:
-        status_class = record.confirmation_status if record.confirmation_status in {"pending", "unknown"} else ""
+        status_class = (
+            record.confirmation_status
+            if record.confirmation_status in {"pending", "unknown"}
+            else ""
+        )
         details = _render_lesson_details(record)
         calendar_url = f"/calendar/ics?{_lesson_query(record, token)}"
         action_html = [
@@ -150,8 +162,14 @@ def _render_control_page(records: list[ScheduleRecord], token: str, last_checked
         if record.confirmation_status == "pending":
             accept_url = f"/actions/confirm?{_lesson_query(record, token, 'accept')}"
             decline_url = f"/actions/confirm?{_lesson_query(record, token, 'decline')}"
-            action_html.insert(0, f'<a class="button primary" href="{html.escape(accept_url)}">Review accept</a>')
-            action_html.insert(1, f'<a class="button danger" href="{html.escape(decline_url)}">Review decline</a>')
+            action_html.insert(
+                0,
+                f'<a class="button primary" href="{html.escape(accept_url)}">Review accept</a>',
+            )
+            action_html.insert(
+                1,
+                f'<a class="button danger" href="{html.escape(decline_url)}">Review decline</a>',
+            )
 
         lesson_cards.append(
             f"""
@@ -160,12 +178,16 @@ def _render_control_page(records: list[ScheduleRecord], token: str, last_checked
                 <h2>{html.escape(record.trainingsbezeichnung)}</h2>
                 <span class="status {html.escape(status_class)}">{html.escape(record.confirmation_status)}</span>
                 {details}
-                <div class="actions">{''.join(action_html)}</div>
+                <div class="actions">{"".join(action_html)}</div>
             </article>
             """.strip()
         )
 
-    lessons_html = "\n".join(lesson_cards) if lesson_cards else "<p class='empty'>No cached lessons found. Run python run_checker.py first.</p>"
+    lessons_html = (
+        "\n".join(lesson_cards)
+        if lesson_cards
+        else "<p class='empty'>No cached lessons found. Run python run_checker.py first.</p>"
+    )
     checked_text = html.escape(last_checked_at or "unknown")
     body = f"""
         <h1>SlopePing Control</h1>
@@ -176,7 +198,9 @@ def _render_control_page(records: list[ScheduleRecord], token: str, last_checked
     return _html_page("SlopePing Control", body)
 
 
-def _render_calendar_page(records: list[ScheduleRecord], token: str, last_checked_at: str | None) -> str:
+def _render_calendar_page(
+    records: list[ScheduleRecord], token: str, last_checked_at: str | None
+) -> str:
     lesson_cards = []
     for record in records:
         calendar_url = f"/calendar/ics?{_lesson_query(record, token)}"
@@ -193,7 +217,11 @@ def _render_calendar_page(records: list[ScheduleRecord], token: str, last_checke
             """.strip()
         )
 
-    lessons_html = "\n".join(lesson_cards) if lesson_cards else "<p class='empty'>No cached lessons found. Run python run_checker.py first.</p>"
+    lessons_html = (
+        "\n".join(lesson_cards)
+        if lesson_cards
+        else "<p class='empty'>No cached lessons found. Run python run_checker.py first.</p>"
+    )
     checked_text = html.escape(last_checked_at or "unknown")
     body = f"""
         <h1>SlopePing Calendar Export</h1>
@@ -225,7 +253,7 @@ def _render_confirmation_page(lesson: ScheduleRecord, action: str, token: str) -
         <form method="post" action="{html.escape(execute_url)}">
             <button class="{button_class}" type="submit">Yes, {html.escape(label)}</button>
         </form>
-        <p><a class="button secondary" href="/control?{html.escape(urlencode({'token': token}))}">Back</a></p>
+        <p><a class="button secondary" href="/control?{html.escape(urlencode({"token": token}))}">Back</a></p>
     """
     return _html_page(f"Confirm {action}", body)
 
@@ -253,7 +281,10 @@ def control_page(token: str) -> HTMLResponse:
 @app.get("/actions/confirm", response_class=HTMLResponse)
 def confirm_action(lesson_id: str, action: str, token: str) -> HTMLResponse:
     _validate_token(token, "confirm")
-    print(f"[webhook] Confirmation page requested for action={action}; using cached state.", flush=True)
+    print(
+        f"[webhook] Confirmation page requested for action={action}; using cached state.",
+        flush=True,
+    )
     records, _ = _load_cached_records()
     lesson = _find_record(records, lesson_id)
     if lesson is None:
@@ -295,7 +326,10 @@ def _handle_action(action: str, lesson_id: str, token: str) -> dict:
     if not _ACTION_LOCK.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="SlopePing is already processing an action")
 
-    print(f"[webhook] Processing {action.upper()} action for lesson_id={lesson_id}.", flush=True)
+    print(
+        f"[webhook] Processing {action.upper()} action for lesson_id={lesson_id}.",
+        flush=True,
+    )
     try:
         settings = load_settings()
         with BrowserSession(settings) as browser:
@@ -324,7 +358,7 @@ def _handle_action(action: str, lesson_id: str, token: str) -> dict:
         raise
     except Exception as exc:
         print(f"[webhook] ERROR: {exc}", flush=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {exc}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {exc}") from exc
     finally:
         _ACTION_LOCK.release()
 
@@ -345,7 +379,10 @@ def calendar_page(token: str) -> HTMLResponse:
 @app.get("/calendar/ics")
 def calendar_export(lesson_id: str, token: str) -> Response:
     _validate_token(token, "calendar_export")
-    print(f"[webhook] ICS export requested for lesson_id={lesson_id}; using cached state.", flush=True)
+    print(
+        f"[webhook] ICS export requested for lesson_id={lesson_id}; using cached state.",
+        flush=True,
+    )
     records, _ = _load_cached_records()
     matching_lesson = _find_record(records, lesson_id)
     if matching_lesson is None:
