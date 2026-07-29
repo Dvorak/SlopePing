@@ -33,6 +33,7 @@ class Settings:
     actions_log_path: Path
     calendar_dir: Path
     logs_dir: Path
+    used_nonces_path: Path
     empty_confirmation_runs: int
     check_retry_attempts: int
     check_retry_delay_seconds: float
@@ -107,6 +108,7 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         actions_log_path=Path(os.getenv("SKI_ACTIONS_LOG_PATH", "actions.log")),
         calendar_dir=Path(os.getenv("SKI_CALENDAR_DIR", "calendar_events")),
         logs_dir=Path(os.getenv("SKI_LOGS_DIR", "logs")),
+        used_nonces_path=Path(os.getenv("SKI_USED_NONCES_PATH", ".slopeping-nonces.json")),
         empty_confirmation_runs=max(2, _int_from_env("SKI_EMPTY_CONFIRMATION_RUNS", 2)),
         check_retry_attempts=max(1, _int_from_env("SKI_CHECK_RETRY_ATTEMPTS", 2)),
         check_retry_delay_seconds=max(

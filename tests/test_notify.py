@@ -1,4 +1,5 @@
 import urllib.error
+from urllib.parse import parse_qs, urlparse
 
 from slopeping.notify import (
     _build_calendar_action,
@@ -7,7 +8,10 @@ from slopeping.notify import (
     _notification_subject,
     _send_ntfy,
 )
+from slopeping.security import verify_token
 from slopeping.state import ScheduleRecord
+
+SECRET = "a-secure-test-secret-that-is-long-enough"
 
 
 def lesson(*, status: str = "confirmed") -> ScheduleRecord:
@@ -42,19 +46,22 @@ def test_notification_body_contains_action_context() -> None:
 
 def test_control_links_are_url_encoded(monkeypatch) -> None:
     monkeypatch.setenv("ACTION_WEBHOOK_BASE_URL", "https://example.test/base/")
-    monkeypatch.setenv("ACTION_WEBHOOK_TOKEN", "token with spaces")
+    monkeypatch.setenv("ACTION_WEBHOOK_TOKEN", SECRET)
 
-    assert _build_control_action() == [
-        "view, Open SlopePing, https://example.test/base/control?token=token+with+spaces"
-    ]
-    assert _build_calendar_action() == [
-        "view, Open calendar page, https://example.test/base/calendar?token=token+with+spaces"
-    ]
+    control_url = _build_control_action()[0].split(", ", 2)[2]
+    calendar_url = _build_calendar_action()[0].split(", ", 2)[2]
+    control_token = parse_qs(urlparse(control_url).query)["token"][0]
+    calendar_token = parse_qs(urlparse(calendar_url).query)["token"][0]
+
+    assert urlparse(control_url).path == "/base/control"
+    assert urlparse(calendar_url).path == "/base/calendar"
+    assert verify_token(SECRET, control_token, {"control"}).scope == "control"
+    assert verify_token(SECRET, calendar_token, {"calendar"}).scope == "calendar"
 
 
 def test_control_links_require_both_url_and_token(monkeypatch) -> None:
     monkeypatch.delenv("ACTION_WEBHOOK_BASE_URL", raising=False)
-    monkeypatch.setenv("ACTION_WEBHOOK_TOKEN", "secret")
+    monkeypatch.setenv("ACTION_WEBHOOK_TOKEN", SECRET)
 
     assert _build_control_action() == []
     assert _build_calendar_action() == []

@@ -7,6 +7,8 @@ from pathlib import Path
 import uvicorn
 from dotenv import load_dotenv
 
+from .security import validate_webhook_secret
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -27,6 +29,7 @@ def load_webhook_server_settings(
     token = os.getenv("ACTION_WEBHOOK_TOKEN", "").strip()
     if not token:
         raise ValueError("Missing ACTION_WEBHOOK_TOKEN in .env")
+    validate_webhook_secret(token)
 
     raw_port = os.getenv("WEBHOOK_PORT", "8000").strip() or "8000"
     try:

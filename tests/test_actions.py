@@ -61,6 +61,7 @@ def settings(tmp_path: Path) -> Settings:
         actions_log_path=tmp_path / "actions.log",
         calendar_dir=tmp_path / "calendar_events",
         logs_dir=tmp_path / "logs",
+        used_nonces_path=tmp_path / "used-nonces.json",
         empty_confirmation_runs=2,
         check_retry_attempts=2,
         check_retry_delay_seconds=0,

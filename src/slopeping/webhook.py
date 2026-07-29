@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import threading
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 
 from .actions import perform_lesson_action
@@ -14,6 +16,8 @@ from .config import load_settings
 from .execution_lock import LockUnavailableError, execution_lock
 from .ics_generator import build_ics_bytes, build_ics_filename, create_ics_event
 from .parser import parse_overview_records
+from .replay import ReplayDetectedError, consume_nonce
+from .security import InvalidTokenError, TokenClaims, issue_token, verify_token
 from .state import ScheduleRecord, load_records, save_records
 from .web_views import (
     render_calendar_page,
@@ -29,20 +33,59 @@ app = FastAPI(
 )
 
 _ACTION_LOCK = threading.Lock()
+_TOKEN_SCOPES = {
+    "control": {"control"},
+    "confirm": {"control"},
+    "accept": {"control"},
+    "decline": {"control"},
+    "calendar": {"calendar", "control"},
+    "calendar_export": {"calendar", "control"},
+    "execute": {"execute"},
+}
 
 
-def _validate_token(token: str, action: str) -> None:
-    expected_token = os.getenv("ACTION_WEBHOOK_TOKEN", "").strip()
-    if not expected_token:
+@app.middleware("http")
+async def add_security_headers(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; style-src 'unsafe-inline'; "
+        "form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+    )
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
+def _webhook_secret() -> str:
+    secret = os.getenv("ACTION_WEBHOOK_TOKEN", "").strip()
+    if not secret:
         print("[webhook] ERROR: ACTION_WEBHOOK_TOKEN is not configured.", flush=True)
         raise HTTPException(status_code=500, detail="Webhook token is not configured")
+    return secret
 
-    if token != expected_token:
+
+def _validate_token(token: str, action: str) -> TokenClaims:
+    secret = _webhook_secret()
+    allowed_scopes = _TOKEN_SCOPES.get(action, set())
+    try:
+        return verify_token(secret, token, allowed_scopes)
+    except (InvalidTokenError, ValueError):
+        if (
+            action != "execute"
+            and _bool_env("WEBHOOK_ALLOW_LEGACY_TOKEN", False)
+            and hmac.compare_digest(token, secret)
+        ):
+            return TokenClaims(scope="legacy", expires_at=0, nonce="", values={})
         print(
             f"[webhook] Security: invalid token attempt for action={action}.",
             flush=True,
         )
-        raise HTTPException(status_code=403, detail="Invalid token")
+        raise HTTPException(status_code=403, detail="Invalid or expired access token") from None
 
 
 def _load_cached_records() -> tuple[list[ScheduleRecord], str | None]:
@@ -97,7 +140,20 @@ def confirm_action(lesson_id: str, action: str, token: str) -> HTMLResponse:
     lesson = _find_record(records, lesson_id)
     if lesson is None:
         raise HTTPException(status_code=404, detail="Lesson not found")
-    return HTMLResponse(content=render_confirmation_page(lesson, action, token))
+    execute_token = issue_token(
+        _webhook_secret(),
+        "execute",
+        _int_env("WEBHOOK_ACTION_TTL_SECONDS", 600),
+        values={"action": action, "lesson_id": lesson_id},
+    )
+    return HTMLResponse(
+        content=render_confirmation_page(
+            lesson,
+            action,
+            token,
+            execute_token,
+        )
+    )
 
 
 @app.post("/actions/execute", response_class=HTMLResponse)
@@ -127,9 +183,14 @@ def decline_lesson(lesson_id: str, token: str) -> dict:
 
 
 def _handle_action(action: str, lesson_id: str, token: str) -> dict:
-    _validate_token(token, action)
+    claims = _validate_token(token, "execute")
     if action not in {"accept", "decline"}:
         raise HTTPException(status_code=400, detail="Unknown action")
+    if claims.values.get("action") != action or claims.values.get("lesson_id") != lesson_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Action token does not match this lesson and action",
+        )
 
     if not _ACTION_LOCK.acquire(blocking=False):
         raise HTTPException(
@@ -143,36 +204,39 @@ def _handle_action(action: str, lesson_id: str, token: str) -> dict:
     )
     try:
         settings = load_settings()
-        with (
-            execution_lock(settings.lock_path, f"webhook-{action}"),
-            BrowserSession(settings) as browser,
-        ):
-            page = browser.login_and_open_schedule()
-            success = perform_lesson_action(page, settings, action, lesson_id)
-            if not success:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Action {action} failed. Check actions.log for details.",
-                )
+        with execution_lock(settings.lock_path, f"webhook-{action}"):
+            consume_nonce(
+                settings.used_nonces_path,
+                claims.nonce,
+                claims.expires_at,
+            )
+            with BrowserSession(settings) as browser:
+                page = browser.login_and_open_schedule()
+                success = perform_lesson_action(page, settings, action, lesson_id)
+                if not success:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Action {action} failed. Check actions.log for details.",
+                    )
 
-            records = parse_overview_records(page, settings.selectors)
-            matching_lesson = _find_record(records, lesson_id)
-            result = {
-                "status": "success",
-                "action": action,
-                "lesson_id": lesson_id,
-                "message": f"Successfully {action}ed lesson",
-            }
-            if matching_lesson:
-                ics_path = create_ics_event(
-                    matching_lesson,
-                    action,
-                    settings.calendar_dir,
-                )
-                result["ics_file"] = str(ics_path)
-            save_records(settings.state_path, records)
-            return result
-    except LockUnavailableError as exc:
+                records = parse_overview_records(page, settings.selectors)
+                matching_lesson = _find_record(records, lesson_id)
+                result = {
+                    "status": "success",
+                    "action": action,
+                    "lesson_id": lesson_id,
+                    "message": f"Successfully {action}ed lesson",
+                }
+                if matching_lesson:
+                    ics_path = create_ics_event(
+                        matching_lesson,
+                        action,
+                        settings.calendar_dir,
+                    )
+                    result["ics_file"] = str(ics_path)
+                save_records(settings.state_path, records)
+                return result
+    except (LockUnavailableError, ReplayDetectedError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except HTTPException:
         raise
@@ -218,3 +282,17 @@ def calendar_export(lesson_id: str, token: str) -> Response:
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.getenv(name, str(default))))
+    except ValueError:
+        return default
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().casefold() in {"1", "true", "yes", "on"}

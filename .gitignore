@@ -16,6 +16,7 @@ build/
 output/
 .slopeping.lock
 .slopeping-health.json
+.slopeping-nonces.json
 
 # Local-only development roadmaps, progress notes, and debugging records.
 .local/development/

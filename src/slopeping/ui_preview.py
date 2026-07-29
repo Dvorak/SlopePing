@@ -49,7 +49,12 @@ def write_ui_previews(output_dir: Path) -> list[Path]:
     pending = records[0]
     pages = {
         "control.html": render_control_page(records, PREVIEW_TOKEN, PREVIEW_CHECKED_AT),
-        "confirmation.html": render_confirmation_page(pending, "accept", PREVIEW_TOKEN),
+        "confirmation.html": render_confirmation_page(
+            pending,
+            "accept",
+            PREVIEW_TOKEN,
+            PREVIEW_TOKEN,
+        ),
         "result.html": render_result_page(
             {
                 "status": "success",

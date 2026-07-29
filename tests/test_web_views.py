@@ -33,4 +33,4 @@ def test_control_page_escapes_lesson_data_and_encodes_token() -> None:
 
 def test_confirmation_page_rejects_unknown_action() -> None:
     with pytest.raises(ValueError, match="Unknown action"):
-        render_confirmation_page(lesson(), "delete", "secret")
+        render_confirmation_page(lesson(), "delete", "control-token", "execute-token")

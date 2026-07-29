@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from typing import TypeAlias
 
+from .security import build_access_url
 from .state import ScheduleRecord
 
 Lesson: TypeAlias = ScheduleRecord
@@ -148,8 +148,18 @@ def _build_control_action() -> list[str]:
     if not webhook_url or not webhook_token:
         return []
 
-    control_query = urllib.parse.urlencode({"token": webhook_token})
-    return [f"view, Open SlopePing, {webhook_url}/control?{control_query}"]
+    try:
+        url = build_access_url(
+            webhook_url,
+            "/control",
+            webhook_token,
+            "control",
+            _int_env("WEBHOOK_LINK_TTL_SECONDS", 86400),
+        )
+    except ValueError as exc:
+        print(f"WARNING: Cannot create control link: {exc}", flush=True)
+        return []
+    return [f"view, Open SlopePing, {url}"]
 
 
 def _build_calendar_action() -> list[str]:
@@ -160,8 +170,18 @@ def _build_calendar_action() -> list[str]:
     if not webhook_url or not webhook_token:
         return []
 
-    calendar_query = urllib.parse.urlencode({"token": webhook_token})
-    return [f"view, Open calendar page, {webhook_url}/calendar?{calendar_query}"]
+    try:
+        url = build_access_url(
+            webhook_url,
+            "/calendar",
+            webhook_token,
+            "calendar",
+            _int_env("WEBHOOK_LINK_TTL_SECONDS", 86400),
+        )
+    except ValueError as exc:
+        print(f"WARNING: Cannot create calendar link: {exc}", flush=True)
+        return []
+    return [f"view, Open calendar page, {url}"]
 
 
 def _notification_subject(lessons: list[Lesson]) -> str:

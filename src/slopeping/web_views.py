@@ -181,7 +181,8 @@ def render_calendar_page(
 def render_confirmation_page(
     lesson: ScheduleRecord,
     action: str,
-    token: str,
+    control_token: str,
+    execute_token: str,
 ) -> str:
     if action not in {"accept", "decline"}:
         raise ValueError(f"Unknown action: {action}")
@@ -196,7 +197,7 @@ def render_confirmation_page(
 
     label = "Bestätigen" if action == "accept" else "Absagen"
     button_class = "primary" if action == "accept" else "danger"
-    execute_url = f"/actions/execute?{_lesson_query(lesson, token, action)}"
+    execute_url = f"/actions/execute?{_lesson_query(lesson, execute_token, action)}"
     body = f"""
         <h1>Confirm {html.escape(action)}</h1>
         <p class="warning">This will log in to Allrounder, choose <strong>{html.escape(label)}</strong>, and click <strong>Speichern</strong>.</p>
@@ -204,7 +205,7 @@ def render_confirmation_page(
         <form method="post" action="{html.escape(execute_url)}">
             <button class="{button_class}" type="submit">Yes, {html.escape(label)}</button>
         </form>
-        <p><a class="button secondary" href="/control?{html.escape(urlencode({"token": token}))}">Back</a></p>
+        <p><a class="button secondary" href="/control?{html.escape(urlencode({"token": control_token}))}">Back</a></p>
     """
     return _html_page(f"Confirm {action}", body)
 
