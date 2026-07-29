@@ -11,9 +11,14 @@ Allrounder coach portal.
 ## Module Overview
 
 - `run_checker.py`
-  Entry point. Adds `src/` to `sys.path` and calls `slopeping.checker.run()`.
+  Compatibility entry point. Adds `src/` to `sys.path` and calls
+  `slopeping.cli.main()`.
 - `scripts/webhook_server.py`
-  Starts the FastAPI webhook/control-page server.
+  Compatibility entry point for `slopeping.server.main()`.
+- `src/slopeping/cli.py`
+  Defines checker CLI arguments and dispatches actions to `slopeping.checker.run()`.
+- `src/slopeping/server.py`
+  Loads and validates webhook server settings, then starts Uvicorn.
 - `src/slopeping/config.py`
   Loads `.env` and builds typed settings.
 - `src/slopeping/browser.py`
@@ -26,8 +31,10 @@ Allrounder coach portal.
 - `src/slopeping/notify.py`
   Sends ntfy notifications, with console fallback.
 - `src/slopeping/webhook.py`
-  Provides the mobile control page, calendar export, and reviewed remote
-  actions.
+  Defines FastAPI routes and coordinates cached state, calendar export, and
+  reviewed remote actions.
+- `src/slopeping/web_views.py`
+  Renders the control, confirmation, result, and calendar HTML pages.
 - `src/slopeping/ics_generator.py`
   Builds Europe/Berlin `.ics` calendar events for lessons.
 

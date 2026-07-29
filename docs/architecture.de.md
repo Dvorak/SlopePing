@@ -11,10 +11,14 @@ Allrounder-Coach-Portal zugeschnitten.
 ## Module
 
 - `run_checker.py`
-  Einstiegspunkt. Fügt `src/` zu `sys.path` hinzu und ruft
-  `slopeping.checker.run()` auf.
+  Kompatibilitätseinstieg. Fügt `src/` zu `sys.path` hinzu und ruft
+  `slopeping.cli.main()` auf.
 - `scripts/webhook_server.py`
-  Startet den FastAPI Webhook- und Kontrollseiten-Server.
+  Kompatibilitätseinstieg für `slopeping.server.main()`.
+- `src/slopeping/cli.py`
+  Definiert CLI-Argumente und leitet Aktionen an `slopeping.checker.run()` weiter.
+- `src/slopeping/server.py`
+  Lädt und prüft Webhook-Server-Einstellungen und startet Uvicorn.
 - `src/slopeping/config.py`
   Lädt `.env` und erstellt typisierte Einstellungen.
 - `src/slopeping/browser.py`
@@ -27,8 +31,10 @@ Allrounder-Coach-Portal zugeschnitten.
 - `src/slopeping/notify.py`
   Sendet ntfy-Benachrichtigungen mit Console-Fallback.
 - `src/slopeping/webhook.py`
-  Stellt die mobile Kontrollseite, Kalenderexport und geprüfte Remote-Aktionen
-  bereit.
+  Definiert FastAPI-Routen und koordiniert Cache, Kalenderexport und geprüfte
+  Remote-Aktionen.
+- `src/slopeping/web_views.py`
+  Rendert Kontroll-, Bestätigungs-, Ergebnis- und Kalenderseiten.
 - `src/slopeping/ics_generator.py`
   Erstellt `.ics` Kalenderereignisse mit Europe/Berlin Zeitzone.
 

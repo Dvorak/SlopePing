@@ -9,10 +9,13 @@ SlopePing 聚焦 Neuss Skihalle 教练在 Allrounder 教练门户里的排班查
 ## 模块概览
 
 - `run_checker.py`
-  入口文件。把 `src/` 加入 `sys.path`，然后调用
-  `slopeping.checker.run()`。
+  兼容入口。把 `src/` 加入 `sys.path`，然后调用 `slopeping.cli.main()`。
 - `scripts/webhook_server.py`
-  启动 FastAPI webhook / 手机控制页服务。
+  webhook 服务的兼容入口，调用 `slopeping.server.main()`。
+- `src/slopeping/cli.py`
+  定义 checker CLI 参数并将动作分发给 `slopeping.checker.run()`。
+- `src/slopeping/server.py`
+  读取并校验 webhook server 配置，然后启动 Uvicorn。
 - `src/slopeping/config.py`
   读取 `.env`，生成类型化配置。
 - `src/slopeping/browser.py`
@@ -24,7 +27,9 @@ SlopePing 聚焦 Neuss Skihalle 教练在 Allrounder 教练门户里的排班查
 - `src/slopeping/notify.py`
   通过 ntfy 发送通知，并保留 console fallback。
 - `src/slopeping/webhook.py`
-  提供手机控制页、日历导出和需要二次确认的远程操作。
+  定义 FastAPI 路由，协调缓存读取、日历导出和二次确认后的远程操作。
+- `src/slopeping/web_views.py`
+  生成手机控制页、确认页、结果页和日历页 HTML。
 - `src/slopeping/ics_generator.py`
   为课程生成 Europe/Berlin 时区的 `.ics` 日历事件。
 
