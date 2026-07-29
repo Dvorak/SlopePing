@@ -1,5 +1,6 @@
 from slopeping.state import ScheduleRecord
-from slopeping.webhook import _render_confirmation_page, accept_lesson, decline_lesson
+from slopeping.web_views import render_confirmation_page
+from slopeping.webhook import accept_lesson, decline_lesson
 
 
 def test_direct_remote_actions_remain_blocked(monkeypatch) -> None:
@@ -21,7 +22,7 @@ def test_non_pending_confirmation_page_has_no_execute_form() -> None:
         available_actions=[],
     )
 
-    rendered = _render_confirmation_page(current, "accept", "secret")
+    rendered = render_confirmation_page(current, "accept", "secret")
 
     assert "Action unavailable" in rendered
     assert "/actions/execute" not in rendered
