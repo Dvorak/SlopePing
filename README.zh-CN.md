@@ -123,6 +123,13 @@ python run_checker.py
 也可以进入确认/拒绝页面。确认或拒绝动作需要再点一次确认按钮，不会因为误触 ntfy
 通知就直接执行。
 
+以上两个 Python 文件是项目的正式入口：
+
+- `run_checker.py`：检查课程，以及执行明确指定的 CLI 动作。
+- `scripts/webhook_server.py`：启动手机控制页服务。
+
+`scripts/run_checker.sh` 和 `scripts/run_webhook_server.sh` 是供 `launchd` 使用的包装脚本。
+
 ## 用 CLI 确认或拒绝
 
 SlopePing 只有在你明确运行下面命令时，才会执行确认/拒绝操作：
@@ -156,6 +163,30 @@ python run_checker.py --decline "LESSON_KEY_OR_ID"
 - `screenshots/`：成功和失败截图
 
 这些文件都已被 Git 忽略。
+
+## 开发与验证
+
+安装固定版本的开发依赖和 Chromium：
+
+```bash
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+```
+
+运行统一检查：
+
+```bash
+./scripts/check.sh
+```
+
+该命令依次检查 Ruff 格式、Ruff lint、mypy 和 pytest。parser 测试使用
+`tests/fixtures/` 中的匿名 HTML，并在本机启动无头 Chromium，不会访问真实门户。
+GitHub Actions 使用同一个命令。
+
+升级依赖时，先在虚拟环境中升级需要的包，把解析出的直接依赖版本同步到
+`requirements.txt` 和 `requirements-dev.txt`，再运行 `./scripts/check.sh`。不要提交
+`.env`、真实页面 HTML、截图或状态文件。
 
 ## 常见问题
 

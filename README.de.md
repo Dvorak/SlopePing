@@ -133,6 +133,10 @@ Auf dem Handy öffnet `Open SlopePing` die Kontrollseite. Dort kannst du Kurse
 prüfen, Kalenderdateien laden und erst nach einer zweiten Bestätigung annehmen
 oder absagen.
 
+Die offiziellen Python-Einstiegspunkte sind `run_checker.py` für Prüfungen und
+explizite CLI-Aktionen sowie `scripts/webhook_server.py` für die mobile
+Kontrollseite. Die Dateien `scripts/run_*.sh` sind Wrapper für launchd.
+
 ## Per CLI bestätigen oder absagen
 
 SlopePing führt eine Bestätigung oder Absage nur aus, wenn du ausdrücklich einen
@@ -172,6 +176,23 @@ Sicherheitsregeln:
 - `screenshots/`: Erfolgs- und Fehler-Screenshots
 
 Beide sind in Git ignoriert.
+
+## Entwicklung und Prüfungen
+
+Festgeschriebene Entwicklungsabhängigkeiten und Chromium installieren und
+anschließend den einheitlichen Prüfbefehl ausführen:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+./scripts/check.sh
+```
+
+Der Befehl prüft Ruff-Formatierung und Lint, mypy und pytest. Parser-Tests
+verwenden anonymisierte HTML-Dateien aus `tests/fixtures/` in einem lokalen
+Headless-Chromium und greifen nicht auf das echte Portal zu. GitHub Actions
+führt denselben Befehl aus.
 
 ## Fehlerbehebung
 

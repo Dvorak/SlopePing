@@ -28,6 +28,10 @@ SlopePing 聚焦 Neuss Skihalle 教练在 Allrounder 教练门户里的排班查
 - `src/slopeping/ics_generator.py`
   为课程生成 Europe/Berlin 时区的 `.ics` 日历事件。
 
+正式运行入口只有 `run_checker.py` 和 `scripts/webhook_server.py`。
+`scripts/run_checker.sh` 与 `scripts/run_webhook_server.sh` 仅负责 launchd 环境、
+日志路径和虚拟环境检查。
+
 ## 运行流程
 
 1. 从 `.env` 读取配置。
@@ -151,6 +155,15 @@ webhook 动作路径带有进程内锁，同一时间只允许一个远程操作
 - `available_actions`
 
 如果 ntfy 配置缺失或发送失败，程序会把同样内容打印到 console，并继续运行。
+
+## 质量基线
+
+- `tests/fixtures/` 保存匿名化排班表 HTML，不包含真实账号或课程数据。
+- parser fixture 测试使用本机无头 Chromium，不访问 Allrounder。
+- 动作安全测试验证非 pending、动作不可用和直接远程动作不会触发页面修改。
+- `./scripts/check.sh` 统一运行 Ruff 格式、Ruff lint、mypy 和 pytest。
+- `.github/workflows/ci.yml` 在 Python 3.11 上运行相同检查。
+- `requirements.txt` 和 `requirements-dev.txt` 固定直接依赖版本。
 
 ## 运行时文件
 

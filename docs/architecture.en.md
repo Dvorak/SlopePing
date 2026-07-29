@@ -31,6 +31,10 @@ Allrounder coach portal.
 - `src/slopeping/ics_generator.py`
   Builds Europe/Berlin `.ics` calendar events for lessons.
 
+The only canonical runtime entry points are `run_checker.py` and
+`scripts/webhook_server.py`. The `scripts/run_checker.sh` and
+`scripts/run_webhook_server.sh` files only wrap them for launchd.
+
 ## Runtime Flow
 
 1. Load settings from `.env`.
@@ -159,6 +163,15 @@ The notification body includes:
 
 If ntfy is missing configuration or sending fails, the program prints the same
 message to the console and keeps running.
+
+## Quality Baseline
+
+- `tests/fixtures/` contains anonymized schedule HTML with no real account data.
+- Parser fixture tests run in local headless Chromium without accessing Allrounder.
+- Action safety tests cover non-pending, unavailable, and direct remote actions.
+- `./scripts/check.sh` runs Ruff formatting, Ruff lint, mypy, and pytest.
+- `.github/workflows/ci.yml` runs the same checks on Python 3.11.
+- Runtime and development direct dependencies are pinned.
 
 ## Runtime Files
 

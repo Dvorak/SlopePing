@@ -61,6 +61,10 @@ local `state.json`, and ntfy notifications.
   a second confirmation in the control page before SlopePing changes anything.
   If you need the full walkthrough, see [webhook-startup-guide.md](docs/webhook-startup-guide.md).
 
+The canonical Python entry points are `run_checker.py` for checks and explicit
+CLI actions, and `scripts/webhook_server.py` for the mobile control service.
+The `scripts/run_*.sh` files are launchd wrappers.
+
 ## What It Does
 
 - Logs in to the Allrounder portal and opens the schedule table
@@ -109,6 +113,22 @@ secured tunnel.
 - `screenshots/`: success and error screenshots
 
 All are ignored by Git.
+
+## Development
+
+Install the pinned development dependencies and Chromium, then run the single
+verification command:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m playwright install chromium
+./scripts/check.sh
+```
+
+This checks Ruff formatting and lint, mypy, and pytest. Parser tests use
+anonymized HTML from `tests/fixtures/` in a local headless Chromium session;
+they do not access the real portal. GitHub Actions runs the same command.
 
 ## Troubleshooting
 

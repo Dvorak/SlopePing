@@ -32,6 +32,10 @@ Allrounder-Coach-Portal zugeschnitten.
 - `src/slopeping/ics_generator.py`
   Erstellt `.ics` Kalenderereignisse mit Europe/Berlin Zeitzone.
 
+Die einzigen offiziellen Laufzeiteinstiege sind `run_checker.py` und
+`scripts/webhook_server.py`. `scripts/run_checker.sh` und
+`scripts/run_webhook_server.sh` dienen nur als launchd-Wrapper.
+
 ## Ablauf
 
 1. Einstellungen aus `.env` laden.
@@ -168,6 +172,15 @@ Die Nachricht enthält:
 
 Wenn ntfy nicht konfiguriert ist oder das Senden fehlschlägt, wird dieselbe
 Nachricht in der Konsole ausgegeben und das Programm läuft weiter.
+
+## Qualitätsbasis
+
+- `tests/fixtures/` enthält anonymisierte Dienstplan-HTML-Dateien ohne echte Kontodaten.
+- Parser-Fixture-Tests laufen lokal in Headless-Chromium ohne Zugriff auf Allrounder.
+- Sicherheitstests decken nicht-pending, nicht verfügbare und direkte Remote-Aktionen ab.
+- `./scripts/check.sh` führt Ruff-Formatierung, Ruff-Lint, mypy und pytest aus.
+- `.github/workflows/ci.yml` führt dieselben Prüfungen mit Python 3.11 aus.
+- Direkte Laufzeit- und Entwicklungsabhängigkeiten sind festgeschrieben.
 
 ## Laufzeitdateien
 
