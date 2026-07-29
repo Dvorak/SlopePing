@@ -19,10 +19,18 @@ def settings(tmp_path: Path) -> Settings:
         state_path=tmp_path / "state.json",
         health_path=tmp_path / "health.json",
         lock_path=tmp_path / "slopeping.lock",
+        actions_log_path=tmp_path / "actions.log",
+        calendar_dir=tmp_path / "calendar_events",
+        logs_dir=tmp_path / "logs",
         empty_confirmation_runs=2,
         check_retry_attempts=2,
         check_retry_delay_seconds=0,
         failure_alert_threshold=2,
+        retention_days=30,
+        screenshots_max_files=200,
+        calendar_max_files=100,
+        log_max_bytes=5_000_000,
+        log_backups=3,
         selectors=Selectors(),
     )
 

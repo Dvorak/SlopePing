@@ -30,10 +30,18 @@ class Settings:
     state_path: Path
     health_path: Path
     lock_path: Path
+    actions_log_path: Path
+    calendar_dir: Path
+    logs_dir: Path
     empty_confirmation_runs: int
     check_retry_attempts: int
     check_retry_delay_seconds: float
     failure_alert_threshold: int
+    retention_days: int
+    screenshots_max_files: int
+    calendar_max_files: int
+    log_max_bytes: int
+    log_backups: int
     selectors: Selectors
 
 
@@ -96,6 +104,9 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         state_path=Path(os.getenv("SKI_STATE_PATH", "state.json")),
         health_path=Path(os.getenv("SKI_HEALTH_PATH", ".slopeping-health.json")),
         lock_path=Path(os.getenv("SKI_LOCK_PATH", ".slopeping.lock")),
+        actions_log_path=Path(os.getenv("SKI_ACTIONS_LOG_PATH", "actions.log")),
+        calendar_dir=Path(os.getenv("SKI_CALENDAR_DIR", "calendar_events")),
+        logs_dir=Path(os.getenv("SKI_LOGS_DIR", "logs")),
         empty_confirmation_runs=max(2, _int_from_env("SKI_EMPTY_CONFIRMATION_RUNS", 2)),
         check_retry_attempts=max(1, _int_from_env("SKI_CHECK_RETRY_ATTEMPTS", 2)),
         check_retry_delay_seconds=max(
@@ -103,5 +114,10 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
             _float_from_env("SKI_CHECK_RETRY_DELAY_SECONDS", 5.0),
         ),
         failure_alert_threshold=max(1, _int_from_env("SKI_FAILURE_ALERT_THRESHOLD", 2)),
+        retention_days=max(1, _int_from_env("SKI_RETENTION_DAYS", 30)),
+        screenshots_max_files=max(1, _int_from_env("SKI_SCREENSHOTS_MAX_FILES", 200)),
+        calendar_max_files=max(1, _int_from_env("SKI_CALENDAR_MAX_FILES", 100)),
+        log_max_bytes=max(1, _int_from_env("SKI_LOG_MAX_BYTES", 5_000_000)),
+        log_backups=max(0, _int_from_env("SKI_LOG_BACKUPS", 3)),
         selectors=selectors,
     )

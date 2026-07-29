@@ -15,6 +15,7 @@ from .health import (
     record_run_started,
     record_run_success,
 )
+from .maintenance import maintain_runtime_files
 from .notify import (
     notify_new_lessons,
     notify_run_failure,
@@ -45,6 +46,7 @@ def _run_locked(
     action: str | None,
     lesson_key: str | None,
 ) -> int:
+    maintain_runtime_files(settings)
     if action is not None and lesson_key is not None:
         return _run_action(settings, action, lesson_key)
     return _run_check(settings)

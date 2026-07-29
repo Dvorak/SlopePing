@@ -9,6 +9,11 @@ LOG_FILE="${LOG_DIR}/checker.log"
 mkdir -p "${LOG_DIR}"
 cd "${PROJECT_ROOT}"
 
+if [[ -x "${PYTHON_BIN}" ]]; then
+  "${PYTHON_BIN}" "${PROJECT_ROOT}/scripts/maintain_runtime.py" ||
+    printf '[%s] WARNING: Runtime maintenance failed; continuing.\\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" >&2
+fi
+
 {
   printf '\n[%s] Starting SlopePing checker\n' "$(date '+%Y-%m-%d %H:%M:%S %z')"
 

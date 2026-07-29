@@ -164,7 +164,11 @@ def _handle_action(action: str, lesson_id: str, token: str) -> dict:
                 "message": f"Successfully {action}ed lesson",
             }
             if matching_lesson:
-                ics_path = create_ics_event(matching_lesson, action)
+                ics_path = create_ics_event(
+                    matching_lesson,
+                    action,
+                    settings.calendar_dir,
+                )
                 result["ics_file"] = str(ics_path)
             save_records(settings.state_path, records)
             return result

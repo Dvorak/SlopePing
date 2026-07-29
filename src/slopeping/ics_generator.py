@@ -26,7 +26,11 @@ def build_ics_filename(lesson: ScheduleRecord, action: str | None = None) -> str
     return f"{safe_tag}_{safe_name}_{suffix}_{timestamp}.ics"
 
 
-def create_ics_event(lesson: ScheduleRecord, action: str) -> Path:
+def create_ics_event(
+    lesson: ScheduleRecord,
+    action: str,
+    calendar_dir: Path = Path("calendar_events"),
+) -> Path:
     """
     Create an .ics calendar event file from a lesson.
 
@@ -39,8 +43,6 @@ def create_ics_event(lesson: ScheduleRecord, action: str) -> Path:
     """
     calendar = _build_calendar(lesson, action=action)
 
-    # Create calendar_events directory if it doesn't exist
-    calendar_dir = Path("calendar_events")
     calendar_dir.mkdir(parents=True, exist_ok=True)
 
     filename = build_ics_filename(lesson, action=action)

@@ -32,7 +32,14 @@ def perform_lesson_action(
     if match is None:
         message = f"Could not find lesson matching {lesson_key!r}."
         print(f"[action] {message}", flush=True)
-        _write_action_log(action, lesson_key, None, "not_found", message)
+        _write_action_log(
+            action,
+            lesson_key,
+            None,
+            "not_found",
+            message,
+            log_path=settings.actions_log_path,
+        )
         return False
 
     record = match.record
@@ -41,20 +48,41 @@ def perform_lesson_action(
     if record.confirmation_status != "pending":
         message = "Refusing to act because the lesson is not pending."
         print(f"[action] {message}", flush=True)
-        _write_action_log(action, lesson_key, record, "not_pending", message)
+        _write_action_log(
+            action,
+            lesson_key,
+            record,
+            "not_pending",
+            message,
+            log_path=settings.actions_log_path,
+        )
         return False
 
     select = match.row.locator("select").first
     if select.count() == 0:
         message = "Could not find a confirmation select in the matched row."
         print(f"[action] {message}", flush=True)
-        _write_action_log(action, lesson_key, record, "missing_select", message)
+        _write_action_log(
+            action,
+            lesson_key,
+            record,
+            "missing_select",
+            message,
+            log_path=settings.actions_log_path,
+        )
         return False
 
     if label not in (record.available_actions or []):
         message = f"Action {label!r} is not available for the matched lesson."
         print(f"[action] {message}", flush=True)
-        _write_action_log(action, lesson_key, record, "action_unavailable", message)
+        _write_action_log(
+            action,
+            lesson_key,
+            record,
+            "action_unavailable",
+            message,
+            log_path=settings.actions_log_path,
+        )
         return False
 
     before = _save_action_screenshot(page, settings, action, "before")
@@ -71,6 +99,7 @@ def perform_lesson_action(
             "select_failed",
             message,
             before_screenshot=before,
+            log_path=settings.actions_log_path,
         )
         return False
 
@@ -85,6 +114,7 @@ def perform_lesson_action(
             "missing_save",
             message,
             before_screenshot=before,
+            log_path=settings.actions_log_path,
         )
         return False
 
@@ -104,6 +134,7 @@ def perform_lesson_action(
             message,
             before_screenshot=before,
             after_screenshot=after,
+            log_path=settings.actions_log_path,
         )
         return False
 
@@ -118,6 +149,7 @@ def perform_lesson_action(
         message,
         before_screenshot=before,
         after_screenshot=after,
+        log_path=settings.actions_log_path,
     )
     return True
 
@@ -175,6 +207,7 @@ def _write_action_log(
     message: str,
     before_screenshot: str | None = None,
     after_screenshot: str | None = None,
+    log_path: Path = Path("actions.log"),
 ) -> None:
     payload = {
         "timestamp": datetime.now(UTC).isoformat(),
@@ -187,8 +220,8 @@ def _write_action_log(
         "before_screenshot": before_screenshot,
         "after_screenshot": after_screenshot,
     }
-    path = Path("actions.log")
-    with path.open("a", encoding="utf-8") as handle:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, ensure_ascii=False))
         handle.write("\n")
-    print(f"[action] Wrote action log: {path}", flush=True)
+    print(f"[action] Wrote action log: {log_path}", flush=True)
