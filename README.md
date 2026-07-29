@@ -79,6 +79,47 @@ The `scripts/run_*.sh` files are launchd wrappers.
 SlopePing only changes a lesson after an explicit CLI command or after you open
 the mobile control page and confirm the action there.
 
+## When the Mobile UI Appears
+
+The UI already exists; you do not need to wait for a real schedule change to
+see it.
+
+1. The checker detects a new or pending lesson and sends an ntfy notification.
+2. `Open SlopePing` opens the control page backed by the latest `state.json`.
+3. Pending lessons show review actions; confirmed lessons only offer calendar
+   export.
+4. A review action opens a second confirmation page without changing Allrounder.
+5. Only the final confirmation logs in again, verifies the live lesson, and
+   performs the action.
+
+While the webhook server is running, you can also open the control page directly:
+
+```text
+http://YOUR_LOCAL_IP:8000/control?token=YOUR_TOKEN
+```
+
+If `state.json` does not exist yet, the page is empty until the checker completes
+once. These screenshots use the production page templates with anonymous sample
+lessons; they do not access Allrounder or perform an action.
+
+Control page:
+
+![SlopePing mobile control page](docs/assets/control-page-preview.png)
+
+Second confirmation:
+
+![SlopePing confirmation page](docs/assets/confirmation-page-preview.png)
+
+Generate the offline HTML and mobile screenshots again with:
+
+```bash
+python scripts/generate_ui_previews.py \
+  --output output/ui-preview \
+  --screenshots output/ui-preview/screenshots
+```
+
+The generated `output/` directory is ignored by Git.
+
 ## Requirements
 
 - Python 3.11+

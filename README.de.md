@@ -37,6 +37,50 @@ mobilen Kontrollseite auf `Bestätigen`, `Absagen` und `Speichern`.
 In ntfy-Benachrichtigungen erscheint `Open SlopePing` für die mobile
 Kontrollseite.
 
+## Wann die mobile Oberfläche erscheint
+
+Die Oberfläche ist bereits vorhanden. Du musst nicht auf eine echte
+Kursänderung warten, um sie anzusehen.
+
+1. Der Checker findet einen neuen oder noch offenen Kurs und sendet eine
+   ntfy-Benachrichtigung.
+2. `Open SlopePing` öffnet die Kontrollseite mit dem letzten Stand aus
+   `state.json`.
+3. Offene Kurse zeigen Aktionen zum Prüfen; bestätigte Kurse bieten nur den
+   Kalenderexport an.
+4. Eine Review-Aktion öffnet eine zweite Bestätigungsseite und ändert noch
+   nichts in Allrounder.
+5. Erst die letzte Bestätigung meldet sich erneut an, prüft den Live-Status und
+   führt die Aktion aus.
+
+Bei laufendem Webhook-Server kann die Kontrollseite auch direkt geöffnet werden:
+
+```text
+http://YOUR_LOCAL_IP:8000/control?token=YOUR_TOKEN
+```
+
+Ohne `state.json` bleibt die Seite leer, bis der Checker einmal erfolgreich
+gelaufen ist. Die folgenden Screenshots verwenden anonyme Beispieldaten und die
+echten Seitentemplates; sie greifen nicht auf Allrounder zu.
+
+Kontrollseite:
+
+![SlopePing Kontrollseite](docs/assets/control-page-preview.png)
+
+Zweite Bestätigung:
+
+![SlopePing Bestätigungsseite](docs/assets/confirmation-page-preview.png)
+
+Offline-Vorschauen und mobile Screenshots lassen sich neu erzeugen:
+
+```bash
+python scripts/generate_ui_previews.py \
+  --output output/ui-preview \
+  --screenshots output/ui-preview/screenshots
+```
+
+Das erzeugte Verzeichnis `output/` wird von Git ignoriert.
+
 ## Voraussetzungen
 
 - Python 3.11+

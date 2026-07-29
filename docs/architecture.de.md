@@ -35,6 +35,12 @@ Allrounder-Coach-Portal zugeschnitten.
   Remote-Aktionen.
 - `src/slopeping/web_views.py`
   Rendert Kontroll-, Bestätigungs-, Ergebnis- und Kalenderseiten.
+- `src/slopeping/ui_preview.py`
+  Erzeugt mit anonymen Kursen und denselben Templates Offline-HTML und mobile
+  Screenshots, ohne auf das Portal zuzugreifen.
+- `scripts/generate_ui_previews.py`
+  Entwicklungs- und Dokumentationseinstieg für UI-Vorschauen, kein
+  Produktionsdienst.
 - `src/slopeping/ics_generator.py`
   Erstellt `.ics` Kalenderereignisse mit Europe/Berlin Zeitzone.
 

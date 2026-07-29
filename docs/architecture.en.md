@@ -35,6 +35,12 @@ Allrounder coach portal.
   reviewed remote actions.
 - `src/slopeping/web_views.py`
   Renders the control, confirmation, result, and calendar HTML pages.
+- `src/slopeping/ui_preview.py`
+  Uses anonymous lessons with the same page templates to generate offline HTML
+  and mobile screenshots without accessing the portal.
+- `scripts/generate_ui_previews.py`
+  Development and documentation entry point for UI previews; it is not a
+  production service.
 - `src/slopeping/ics_generator.py`
   Builds Europe/Berlin `.ics` calendar events for lessons.
 

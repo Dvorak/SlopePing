@@ -31,6 +31,49 @@ ntfy 通知。
 SlopePing 只识别并提醒需要处理的课程。它只有在你明确运行 CLI 命令，或在手机控制页
 二次确认后，才会点击 `Bestätigen`、`Absagen` 和 `Speichern`。
 
+## 手机界面何时出现
+
+界面已经存在，不需要等待远端出现新课程才能查看。
+
+正常流程如下：
+
+1. checker 发现新课程或待确认课程，并发送 ntfy 通知。
+2. 点击通知中的 `Open SlopePing`，打开使用最近一次 `state.json` 的控制页。
+3. `pending` 课程显示 `Review accept` 和 `Review decline`；已确认课程只显示日历导出。
+4. 点击 Review 后进入二次确认页，此时仍未修改远端课程。
+5. 只有点击最后的确认按钮，SlopePing 才会重新登录 Allrounder、核对实时状态并执行动作。
+
+Webhook server 运行时，也可以不经过通知直接打开：
+
+```text
+http://YOUR_LOCAL_IP:8000/control?token=YOUR_TOKEN
+```
+
+如果还没有 `state.json`，控制页会显示为空；先运行一次 checker 即可建立缓存。
+
+下面的截图由生产页面模板和匿名模拟课程生成，没有访问 Allrounder，也没有执行真实操作。
+
+控制页：
+
+![SlopePing 手机控制页](docs/assets/control-page-preview.png)
+
+二次确认页：
+
+![SlopePing 二次确认页](docs/assets/confirmation-page-preview.png)
+
+开发或演示时，可以完全离线重新生成这些页面和手机尺寸截图：
+
+```bash
+python scripts/generate_ui_previews.py \
+  --output output/ui-preview \
+  --screenshots output/ui-preview/screenshots
+
+open output/ui-preview/control.html
+open output/ui-preview/confirmation.html
+```
+
+`output/` 已被 Git 忽略，预览数据不包含真实账号或课程。
+
 ## 需要准备
 
 - Python 3.11+

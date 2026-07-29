@@ -30,6 +30,10 @@ SlopePing 聚焦 Neuss Skihalle 教练在 Allrounder 教练门户里的排班查
   定义 FastAPI 路由，协调缓存读取、日历导出和二次确认后的远程操作。
 - `src/slopeping/web_views.py`
   生成手机控制页、确认页、结果页和日历页 HTML。
+- `src/slopeping/ui_preview.py`
+  用匿名课程调用同一套页面模板，生成离线 HTML 和手机尺寸截图；不会访问门户。
+- `scripts/generate_ui_previews.py`
+  开发与文档使用的 UI 预览入口，不是生产服务。
 - `src/slopeping/ics_generator.py`
   为课程生成 Europe/Berlin 时区的 `.ics` 日历事件。
 

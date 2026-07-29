@@ -13,6 +13,7 @@ logs/
 dist/
 build/
 *.egg-info/
+output/
 
 # Local-only development roadmaps, progress notes, and debugging records.
 .local/development/
