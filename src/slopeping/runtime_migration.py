@@ -48,23 +48,32 @@ def migrate_runtime_data(
     timestamp: str | None = None,
 ) -> MigrationResult:
     moves = planned_moves(project_root, runtime_dir)
-    conflicts = [move for move in moves if move.source.exists() and move.target.exists()]
+    conflicts = [
+        move
+        for move in moves
+        if move.source.exists()
+        and move.target.exists()
+        and not (move.source.is_dir() and move.target.is_dir())
+    ]
     if conflicts:
         details = ", ".join(f"{move.source} -> {move.target}" for move in conflicts)
         raise MigrationConflictError(f"Migration targets already exist: {details}")
 
+    current_timestamp = timestamp or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     moved = []
     for move in moves:
         if not move.source.exists():
             continue
         move.target.parent.mkdir(parents=True, exist_ok=True)
-        move.source.replace(move.target)
+        if move.source.is_dir() and move.target.is_dir():
+            _merge_directory(move.source, move.target, current_timestamp)
+        else:
+            move.source.replace(move.target)
         moved.append(move)
 
     env_backup = None
     env_path = project_root / ".env"
     if update_env and env_path.exists():
-        current_timestamp = timestamp or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         backup_dir = project_root / ".local" / "runtime-migration" / current_timestamp
         backup_dir.mkdir(parents=True, exist_ok=True)
         env_backup = backup_dir / ".env.backup"
@@ -72,6 +81,30 @@ def migrate_runtime_data(
         update_env_paths(env_path, runtime_dir)
 
     return MigrationResult(tuple(moved), env_backup)
+
+
+def _merge_directory(source: Path, target: Path, timestamp: str) -> None:
+    for child in source.iterdir():
+        destination = target / child.name
+        if not destination.exists():
+            child.replace(destination)
+            continue
+        if child.is_dir() and destination.is_dir():
+            _merge_directory(child, destination, timestamp)
+            child.rmdir()
+            continue
+        legacy = _legacy_path(destination, timestamp)
+        child.replace(legacy)
+    source.rmdir()
+
+
+def _legacy_path(path: Path, timestamp: str) -> Path:
+    candidate = path.with_name(f"{path.stem}.legacy-{timestamp}{path.suffix}")
+    index = 1
+    while candidate.exists():
+        candidate = path.with_name(f"{path.stem}.legacy-{timestamp}-{index}{path.suffix}")
+        index += 1
+    return candidate
 
 
 def update_env_paths(env_path: Path, runtime_dir: Path) -> None:

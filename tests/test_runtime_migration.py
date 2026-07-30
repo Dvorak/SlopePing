@@ -45,3 +45,25 @@ def test_migration_refuses_to_overwrite_existing_targets(tmp_path: Path) -> None
 
     assert source.read_text(encoding="utf-8") == "source"
     assert target.read_text(encoding="utf-8") == "target"
+
+
+def test_migration_merges_directories_without_overwriting_new_files(tmp_path: Path) -> None:
+    old_logs = tmp_path / "logs"
+    new_logs = tmp_path / "var" / "logs"
+    old_logs.mkdir()
+    new_logs.mkdir(parents=True)
+    (old_logs / "checker.log").write_text("legacy", encoding="utf-8")
+    (old_logs / "webhook.log").write_text("webhook", encoding="utf-8")
+    (new_logs / "checker.log").write_text("current", encoding="utf-8")
+
+    migrate_runtime_data(
+        tmp_path,
+        Path("var"),
+        update_env=False,
+        timestamp="20260730-120000",
+    )
+
+    assert not old_logs.exists()
+    assert (new_logs / "checker.log").read_text(encoding="utf-8") == "current"
+    assert (new_logs / "checker.legacy-20260730-120000.log").read_text(encoding="utf-8") == "legacy"
+    assert (new_logs / "webhook.log").read_text(encoding="utf-8") == "webhook"
