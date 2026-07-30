@@ -2,25 +2,19 @@
 
 Language: English | 中文
 
-This guide shows how to run SlopePing automatically on macOS with `launchd`.
-It covers two jobs:
+SlopePing installs two user LaunchAgents:
 
-- A scheduled checker job that runs `python run_checker.py`
-- A webhook server job that keeps `python scripts/webhook_server.py` running
+- `com.slopeping`: runs the checker at 08:00, 13:00, and 20:00.
+- `com.slopeping.webhook`: keeps the mobile Webhook service running.
 
-Paths below assume the project is here:
-
-```text
-/Users/zhang/SlopePing
-```
-
-Adjust the paths if your local checkout moves.
+The checked-in shell wrappers resolve runtime paths from `.env`. With the
+default configuration, all logs are stored in `var/logs/`.
 
 ## English
 
-### 1. Check The Project Manually First
+### Install or update
 
-Before using `launchd`, make sure both commands work in Terminal:
+Test the commands manually first:
 
 ```bash
 cd /Users/zhang/SlopePing
@@ -29,161 +23,55 @@ python run_checker.py
 python scripts/webhook_server.py
 ```
 
-Stop the webhook server with `Ctrl+C` after the manual test.
-
-### 2. Scheduled Checker Job
-
-Create this file:
-
-```text
-~/Library/LaunchAgents/com.slopeping.checker.plist
-```
-
-Content:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.slopeping.checker</string>
-
-  <key>WorkingDirectory</key>
-  <string>/Users/zhang/SlopePing</string>
-
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/zhang/SlopePing/.venv/bin/python</string>
-    <string>/Users/zhang/SlopePing/run_checker.py</string>
-  </array>
-
-  <key>StartInterval</key>
-  <integer>900</integer>
-
-  <key>StandardOutPath</key>
-  <string>/Users/zhang/SlopePing/logs/checker.out.log</string>
-
-  <key>StandardErrorPath</key>
-  <string>/Users/zhang/SlopePing/logs/checker.err.log</string>
-</dict>
-</plist>
-```
-
-`StartInterval=900` means every 15 minutes.
-
-Create the log directory:
+Stop the manually started Webhook with `Ctrl+C`, then install both jobs:
 
 ```bash
-mkdir -p /Users/zhang/SlopePing/logs
+./scripts/install_launchd.sh
 ```
 
-Load the job:
+The installer validates both plist files, replaces older loaded jobs, and
+starts the Webhook service. Re-run the same command after changing the checkout
+path, runtime directory, or wrapper scripts.
+
+### Verify
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.slopeping.checker.plist
+launchctl print gui/$(id -u)/com.slopeping
+launchctl print gui/$(id -u)/com.slopeping.webhook
+curl http://127.0.0.1:8000/health
+tail -f var/logs/checker.log
+tail -f var/logs/webhook_server.log
 ```
 
-Run it once immediately:
+The checker normally shows `state = not running` between scheduled runs. The
+Webhook should show `state = running`.
+
+### Uninstall
 
 ```bash
-launchctl start com.slopeping.checker
+./scripts/uninstall_launchd.sh
 ```
 
-Check logs:
+This removes only the LaunchAgent plist files. It does not delete `.env` or
+anything under `var/`.
 
-```bash
-tail -f /Users/zhang/SlopePing/logs/checker.out.log
-tail -f /Users/zhang/SlopePing/logs/checker.err.log
-```
+### Notes
 
-Unload it:
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.slopeping.checker.plist
-```
-
-### 3. Webhook Server Job
-
-Create this file:
-
-```text
-~/Library/LaunchAgents/com.slopeping.webhook.plist
-```
-
-Content:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.slopeping.webhook</string>
-
-  <key>WorkingDirectory</key>
-  <string>/Users/zhang/SlopePing</string>
-
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/zhang/SlopePing/.venv/bin/python</string>
-    <string>/Users/zhang/SlopePing/scripts/webhook_server.py</string>
-  </array>
-
-  <key>RunAtLoad</key>
-  <true/>
-
-  <key>KeepAlive</key>
-  <true/>
-
-  <key>StandardOutPath</key>
-  <string>/Users/zhang/SlopePing/logs/webhook.out.log</string>
-
-  <key>StandardErrorPath</key>
-  <string>/Users/zhang/SlopePing/logs/webhook.err.log</string>
-</dict>
-</plist>
-```
-
-Load it:
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.slopeping.webhook.plist
-```
-
-Check that it is running:
-
-```bash
-curl http://localhost:8000/health
-tail -f /Users/zhang/SlopePing/logs/webhook.out.log
-```
-
-Unload it:
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.slopeping.webhook.plist
-```
-
-### 4. Important Notes
-
-- `launchd` does not automatically use your interactive shell environment.
-  Use absolute paths, as shown above.
-- If phone access is needed, `.env` must contain a reachable
-  `ACTION_WEBHOOK_BASE_URL` and usually `WEBHOOK_HOST=0.0.0.0` on a trusted
-  local network.
-- Keep `.env` private.
-- If the checker opens a visible browser, make sure the Mac is logged in. For
-  unattended use, consider `SKI_HEADLESS=true` after you have tested the flow.
+- `launchd` does not use the interactive shell environment. The wrappers use
+  absolute project and virtual-environment paths.
+- Use `SKI_HEADLESS=true` only after a successful visible browser test.
+- For phone access, `WEBHOOK_HOST=0.0.0.0` is appropriate only on a trusted
+  network or behind a secure tunnel.
+- `var/logs/` is rotated by the runtime maintenance command before services
+  start.
 
 ---
 
 ## 中文
 
-### 1. 先手动确认项目可运行
+### 安装或更新
 
-配置 `launchd` 之前，先在终端确认这两个命令能跑：
+先手动验证：
 
 ```bash
 cd /Users/zhang/SlopePing
@@ -192,149 +80,39 @@ python run_checker.py
 python scripts/webhook_server.py
 ```
 
-手动测试 webhook server 后，用 `Ctrl+C` 停止。
-
-### 2. 定时检查课程
-
-创建这个文件：
-
-```text
-~/Library/LaunchAgents/com.slopeping.checker.plist
-```
-
-内容：
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.slopeping.checker</string>
-
-  <key>WorkingDirectory</key>
-  <string>/Users/zhang/SlopePing</string>
-
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/zhang/SlopePing/.venv/bin/python</string>
-    <string>/Users/zhang/SlopePing/run_checker.py</string>
-  </array>
-
-  <key>StartInterval</key>
-  <integer>900</integer>
-
-  <key>StandardOutPath</key>
-  <string>/Users/zhang/SlopePing/logs/checker.out.log</string>
-
-  <key>StandardErrorPath</key>
-  <string>/Users/zhang/SlopePing/logs/checker.err.log</string>
-</dict>
-</plist>
-```
-
-`StartInterval=900` 表示每 15 分钟运行一次。
-
-创建日志目录：
+用 `Ctrl+C` 停止手动启动的 Webhook，然后安装两个任务：
 
 ```bash
-mkdir -p /Users/zhang/SlopePing/logs
+./scripts/install_launchd.sh
 ```
 
-加载任务：
+安装脚本会校验 plist、卸载旧任务、重新加载并启动 Webhook。仓库路径、
+`SLOPEPING_RUNTIME_DIR` 或包装脚本变化后，重新运行同一命令即可。
+
+### 验证
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.slopeping.checker.plist
+launchctl print gui/$(id -u)/com.slopeping
+launchctl print gui/$(id -u)/com.slopeping.webhook
+curl http://127.0.0.1:8000/health
+tail -f var/logs/checker.log
+tail -f var/logs/webhook_server.log
 ```
 
-立刻运行一次：
+checker 在计划时间之外通常显示 `state = not running`，这是正常的；Webhook 应显示
+`state = running`。
+
+### 卸载
 
 ```bash
-launchctl start com.slopeping.checker
+./scripts/uninstall_launchd.sh
 ```
 
-查看日志：
+该命令只删除 LaunchAgent plist，不会删除 `.env` 或 `var/` 中的数据。
 
-```bash
-tail -f /Users/zhang/SlopePing/logs/checker.out.log
-tail -f /Users/zhang/SlopePing/logs/checker.err.log
-```
+### 注意
 
-停止并卸载任务：
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.slopeping.checker.plist
-```
-
-### 3. 保持 webhook server 运行
-
-创建这个文件：
-
-```text
-~/Library/LaunchAgents/com.slopeping.webhook.plist
-```
-
-内容：
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.slopeping.webhook</string>
-
-  <key>WorkingDirectory</key>
-  <string>/Users/zhang/SlopePing</string>
-
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/zhang/SlopePing/.venv/bin/python</string>
-    <string>/Users/zhang/SlopePing/scripts/webhook_server.py</string>
-  </array>
-
-  <key>RunAtLoad</key>
-  <true/>
-
-  <key>KeepAlive</key>
-  <true/>
-
-  <key>StandardOutPath</key>
-  <string>/Users/zhang/SlopePing/logs/webhook.out.log</string>
-
-  <key>StandardErrorPath</key>
-  <string>/Users/zhang/SlopePing/logs/webhook.err.log</string>
-</dict>
-</plist>
-```
-
-加载任务：
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.slopeping.webhook.plist
-```
-
-检查是否运行：
-
-```bash
-curl http://localhost:8000/health
-tail -f /Users/zhang/SlopePing/logs/webhook.out.log
-```
-
-停止并卸载任务：
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.slopeping.webhook.plist
-```
-
-### 4. 注意事项
-
-- `launchd` 不会自动使用你平时终端里的 shell 环境，所以 plist 里要使用绝对路径。
-- 如果手机要访问 webhook，`.env` 里要设置手机能访问到的
-  `ACTION_WEBHOOK_BASE_URL`。在可信局域网下通常还需要
-  `WEBHOOK_HOST=0.0.0.0`。
-- `.env` 要保密，不要提交。
-- 如果 checker 会打开可见浏览器，Mac 需要处于已登录状态。确认流程稳定后，可以考虑设置
-  `SKI_HEADLESS=true` 做无人值守运行。
+- launchd 不使用交互式 shell 环境，包装脚本使用项目和虚拟环境的绝对路径。
+- 先完成可见浏览器验证，再设置 `SKI_HEADLESS=true`。
+- 只有在可信局域网或安全 tunnel 后面才使用 `WEBHOOK_HOST=0.0.0.0`。
+- 服务启动前会对 `var/logs/` 执行日志轮转。

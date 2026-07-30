@@ -20,14 +20,14 @@ Allrounder coach portal.
 - `src/slopeping/server.py`
   Loads and validates webhook server settings, then starts Uvicorn.
 - `src/slopeping/config.py`
-  Loads `.env` and builds typed settings.
+  Loads `.env`, typed settings, and centralized `var/` runtime paths.
 - `src/slopeping/browser.py`
   Owns Playwright startup, login, navigation, page switching, and screenshots.
 - `src/slopeping/parser.py`
   Finds the schedule table and converts table rows into lesson records.
 - `src/slopeping/state.py`
-  Defines lesson records, stores `state.json`, and compares current lessons with
-  the previous run.
+  Defines lesson records, stores `var/state.json` with a backup, and compares
+  current lessons with the previous run.
 - `src/slopeping/notify.py`
   Sends ntfy notifications, with console fallback.
 - `src/slopeping/webhook.py`
@@ -35,6 +35,16 @@ Allrounder coach portal.
   reviewed remote actions.
 - `src/slopeping/web_views.py`
   Renders the control, confirmation, result, and calendar HTML pages.
+- `src/slopeping/execution_lock.py`
+  Provides one cross-process browser lock for checker, CLI, and webhook work.
+- `src/slopeping/health.py` and `src/slopeping/retry.py`
+  Persist run health and retry only recoverable transient errors.
+- `src/slopeping/maintenance.py`
+  Prunes old screenshots and calendars and rotates oversized logs.
+- `src/slopeping/security.py` and `src/slopeping/replay.py`
+  Issue short-lived HMAC tokens and prevent final action form replay.
+- `src/slopeping/runtime_migration.py`
+  Safely migrates legacy root runtime data into `var/`.
 - `src/slopeping/ui_preview.py`
   Uses anonymous lessons with the same page templates to generate offline HTML
   and mobile screenshots without accessing the portal.
@@ -60,10 +70,10 @@ The only canonical runtime entry points are `run_checker.py` and
 8. Wait for `table#TAB` or the `Übersicht` text.
 9. Parse lessons.
 10. Save a screenshot.
-11. Load previous records from `state.json`.
+11. Load previous records from `var/state.json`.
 12. Compare current records with previous records.
 13. Notify through ntfy when needed.
-14. Save the current records back to `state.json`.
+14. Save current records to `var/state.json` and retain the previous backup.
 
 When `--accept` or `--decline` is passed, SlopePing runs an action flow instead
 of the normal notify-and-save flow:
@@ -75,7 +85,7 @@ of the normal notify-and-save flow:
 5. Select `Bestätigen` or `Absagen`.
 6. Click `Speichern`.
 7. Save before/after screenshots.
-8. Append a JSON line to `actions.log`.
+8. Append a JSON line to `var/actions.log`.
 
 ## Schedule Parsing
 
@@ -117,7 +127,7 @@ Each lesson has a stable key built from:
 Tag + Von + Bis + Raum/Ort + Trainingsbezeichnung
 ```
 
-If a key did not exist in `state.json`, the lesson is treated as new.
+If a key did not exist in `var/state.json`, the lesson is treated as new.
 
 If the key exists but the full record changed, for example `Bestätigung`
 changed, it is treated as changed.
@@ -145,18 +155,30 @@ python run_checker.py --decline "LESSON_ID"
 ## Mobile Control Flow
 
 If `ACTION_WEBHOOK_BASE_URL` and `ACTION_WEBHOOK_TOKEN` are configured, ntfy
-adds safe links:
+adds HMAC-signed links that expire after 24 hours by default:
 
 - `Open SlopePing`: opens `/control?token=...`
 - `Open calendar page`: opens `/calendar?token=...`
 
 The notification does not execute accept or decline actions directly. The
-control and calendar pages read the last saved `state.json` snapshot, so opening
+control and calendar pages read the last saved `var/state.json` snapshot, so opening
 them does not start Playwright. `/actions/execute` then logs in, re-checks the
 live Allrounder page, and saves only after the second confirmation.
 
-The webhook action path uses a process-local lock, so only one remote action can
-run at a time.
+The confirmation page issues a 10-minute execution token bound to the lesson and
+action. Its nonce is persisted before execution, so the same form cannot be
+submitted twice. Every browser entry point shares a cross-process lock.
+
+## Reliability Guards
+
+- A first empty result after a non-empty state preserves the old state; a second
+  structurally valid empty table confirms it.
+- Data rows missing date, time, location, or lesson name fail parsing closed.
+- Normal checks retry only transient Playwright/network errors; actions never
+  retry automatically.
+- `var/health.json` records timing, lesson count, consecutive failures, and errors.
+- First failure, configured threshold, and recovery produce status notifications.
+- Screenshots and calendars have bounded retention; oversized logs rotate.
 
 ## ntfy Notification
 
@@ -190,15 +212,19 @@ message to the console and keeps running.
 
 - `.env`
   Local secrets and user configuration. Ignored by Git.
-- `state.json`
-  Last successful parsed state. Ignored by Git.
-- `screenshots/`
+- `var/state.json` and `var/state.json.bak`
+  Last successful parsed state and its previous backup. Ignored by Git.
+- `var/screenshots/`
   Success and error screenshots. Ignored by Git.
-- `actions.log`
+- `var/actions.log`
   JSON-line history for CLI and webhook actions. Ignored by Git.
-- `calendar_events/`
+- `var/calendar_events/`
   Generated `.ics` files for accepted or declined webhook actions. Ignored by
   Git.
+- `var/health.json`
+  Latest run and consecutive anomaly state. Ignored by Git.
+- `var/logs/`
+  Checker, webhook, and launchd logs. Ignored by Git.
 
 ## Safety Notes
 
@@ -209,5 +235,6 @@ message to the console and keeps running.
 - The script prints progress messages, but it does not print the password.
 - The webhook server listens on `127.0.0.1` by default. Use `0.0.0.0` only on a
   trusted network or behind a secured tunnel.
-- The webhook token is still passed in URLs, so avoid exposing the server on the
-  public internet without HTTPS and stronger authentication.
+- URLs contain only short-lived signed tokens; the long-term secret remains in `.env`.
+- Short-lived tokens are still credentials. Public access still requires HTTPS
+  and an additional authentication layer.

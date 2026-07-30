@@ -20,14 +20,14 @@ Allrounder-Coach-Portal zugeschnitten.
 - `src/slopeping/server.py`
   Lädt und prüft Webhook-Server-Einstellungen und startet Uvicorn.
 - `src/slopeping/config.py`
-  Lädt `.env` und erstellt typisierte Einstellungen.
+  Lädt `.env`, typisierte Einstellungen und zentrale `var/` Laufzeitpfade.
 - `src/slopeping/browser.py`
   Verwaltet Playwright, Login, Navigation, Seitenwechsel und Screenshots.
 - `src/slopeping/parser.py`
   Findet die Planungstabelle und wandelt Tabellenzeilen in Kursdatensätze um.
 - `src/slopeping/state.py`
-  Definiert Kursdatensätze, liest und schreibt `state.json` und vergleicht den
-  aktuellen Lauf mit dem vorherigen.
+  Definiert Kursdatensätze, liest und schreibt `var/state.json` mit Sicherung
+  und vergleicht den aktuellen Lauf mit dem vorherigen.
 - `src/slopeping/notify.py`
   Sendet ntfy-Benachrichtigungen mit Console-Fallback.
 - `src/slopeping/webhook.py`
@@ -35,6 +35,16 @@ Allrounder-Coach-Portal zugeschnitten.
   Remote-Aktionen.
 - `src/slopeping/web_views.py`
   Rendert Kontroll-, Bestätigungs-, Ergebnis- und Kalenderseiten.
+- `src/slopeping/execution_lock.py`
+  Stellt eine prozessübergreifende Browsersperre für Checker, CLI und Webhook bereit.
+- `src/slopeping/health.py` und `src/slopeping/retry.py`
+  Speichern Laufstatus und wiederholen nur behebbare temporäre Fehler.
+- `src/slopeping/maintenance.py`
+  Löscht alte Screenshots/Kalenderdateien und rotiert zu große Protokolle.
+- `src/slopeping/security.py` und `src/slopeping/replay.py`
+  Erzeugen kurzlebige HMAC-Token und verhindern wiederholte Aktionsformulare.
+- `src/slopeping/runtime_migration.py`
+  Migriert alte Laufzeitdaten sicher nach `var/`.
 - `src/slopeping/ui_preview.py`
   Erzeugt mit anonymen Kursen und denselben Templates Offline-HTML und mobile
   Screenshots, ohne auf das Portal zuzugreifen.
@@ -60,10 +70,10 @@ Die einzigen offiziellen Laufzeiteinstiege sind `run_checker.py` und
 8. Auf `table#TAB` oder den Text `Übersicht` warten.
 9. Kurse parsen.
 10. Screenshot speichern.
-11. Vorherige Datensätze aus `state.json` laden.
+11. Vorherige Datensätze aus `var/state.json` laden.
 12. Aktuelle und vorherige Datensätze vergleichen.
 13. Bei Bedarf per ntfy benachrichtigen.
-14. Aktuelle Datensätze in `state.json` speichern.
+14. Aktuelle Datensätze in `var/state.json` speichern und die vorige Version sichern.
 
 Wenn `--accept` oder `--decline` übergeben wird, läuft statt des normalen
 Benachrichtigungs- und Speicherflusses ein Aktionsfluss:
@@ -75,7 +85,7 @@ Benachrichtigungs- und Speicherflusses ein Aktionsfluss:
 5. `Bestätigen` oder `Absagen` auswählen.
 6. `Speichern` klicken.
 7. Vorher-/Nachher-Screenshots speichern.
-8. Eine JSON-Zeile an `actions.log` anhängen.
+8. Eine JSON-Zeile an `var/actions.log` anhängen.
 
 ## Tabellenanalyse
 
@@ -117,7 +127,7 @@ Der stabile Schlüssel eines Kurses besteht aus:
 Tag + Von + Bis + Raum/Ort + Trainingsbezeichnung
 ```
 
-Wenn dieser Schlüssel nicht in `state.json` vorhanden ist, gilt der Kurs als
+Wenn dieser Schlüssel nicht in `var/state.json` vorhanden ist, gilt der Kurs als
 neu.
 
 Wenn der Schlüssel vorhanden ist, aber der komplette Datensatz anders ist, zum
@@ -152,19 +162,32 @@ python run_checker.py --decline "LESSON_ID"
 ## Mobile Kontrollseite
 
 Wenn `ACTION_WEBHOOK_BASE_URL` und `ACTION_WEBHOOK_TOKEN` konfiguriert sind,
-fügt ntfy sichere Links hinzu:
+fügt ntfy HMAC-signierte Links hinzu, die standardmäßig 24 Stunden gelten:
 
 - `Open SlopePing`: öffnet `/control?token=...`
 - `Open calendar page`: öffnet `/calendar?token=...`
 
 Die Benachrichtigung führt Bestätigen oder Absagen nicht direkt aus. Kontroll-
-und Kalenderseite lesen standardmäßig den zuletzt gespeicherten `state.json`
+und Kalenderseite lesen standardmäßig den zuletzt gespeicherten `var/state.json`
 Snapshot, sodass das Öffnen der Seite Playwright nicht startet.
 `/actions/execute` meldet sich nach der zweiten Bestätigung an, prüft die Live-
 Allrounder-Seite erneut und speichert erst danach.
 
-Der Webhook-Aktionspfad verwendet eine prozesslokale Sperre, sodass immer nur
-eine Remote-Aktion gleichzeitig laufen kann.
+Die Bestätigungsseite erzeugt ein zehn Minuten gültiges Ausführungstoken, das an
+Kurs und Aktion gebunden ist. Die Nonce wird vor der Ausführung gespeichert, das
+Formular kann nicht zweimal ausgeführt werden. Alle Browserpfade teilen eine
+prozessübergreifende Sperre.
+
+## Zuverlässigkeitsschutz
+
+- Ein erstes leeres Ergebnis nach einem nicht leeren Zustand behält den alten
+  Stand; erst die zweite strukturell gültige leere Tabelle bestätigt ihn.
+- Unvollständige Datenzeilen führen zu einem sicheren Parserfehler.
+- Normale Prüfungen wiederholen nur temporäre Playwright-/Netzwerkfehler;
+  Aktionen werden nie automatisch wiederholt.
+- `var/health.json` speichert Laufzeit, Kurszahl, Fehlerfolge und Fehlerart.
+- Erster Fehler, Fehlerschwelle und Erholung erzeugen Statusmeldungen.
+- Screenshots und Kalenderdateien sind begrenzt; große Protokolle rotieren.
 
 ## ntfy-Benachrichtigung
 
@@ -198,14 +221,18 @@ Nachricht in der Konsole ausgegeben und das Programm läuft weiter.
 
 - `.env`
   Lokale Zugangsdaten und Konfiguration. Von Git ignoriert.
-- `state.json`
-  Letzter erfolgreich gelesener Kursstand. Von Git ignoriert.
-- `screenshots/`
+- `var/state.json` und `var/state.json.bak`
+  Letzter erfolgreich gelesener Kursstand und vorige Sicherung. Von Git ignoriert.
+- `var/screenshots/`
   Erfolgs- und Fehler-Screenshots. Von Git ignoriert.
-- `actions.log`
+- `var/actions.log`
   JSON-Line-Historie für CLI- und Webhook-Aktionen. Von Git ignoriert.
-- `calendar_events/`
+- `var/calendar_events/`
   Generierte `.ics` Dateien für Webhook-Aktionen. Von Git ignoriert.
+- `var/health.json`
+  Letzter Lauf und aufeinanderfolgende Anomalien. Von Git ignoriert.
+- `var/logs/`
+  Checker-, Webhook- und launchd-Protokolle. Von Git ignoriert.
 
 ## Sicherheit
 
@@ -216,5 +243,7 @@ Nachricht in der Konsole ausgegeben und das Programm läuft weiter.
 - Das Skript druckt Fortschrittsmeldungen, aber kein Passwort.
 - Der Webhook-Server hört standardmäßig auf `127.0.0.1`. `0.0.0.0` nur in
   einem vertrauenswürdigen Netzwerk oder hinter einem gesicherten Tunnel nutzen.
-- Der Webhook-Token steht weiterhin in URLs. Den Server daher nicht ohne HTTPS
-  und stärkere Authentifizierung öffentlich erreichbar machen.
+- URLs enthalten nur kurzlebige signierte Token; das langfristige Geheimnis
+  bleibt in `.env`.
+- Kurzlebige Token sind weiterhin Zugangsdaten. Öffentlicher Zugriff erfordert
+  HTTPS und eine zusätzliche Authentifizierungsschicht.

@@ -7,7 +7,7 @@ change, and can open a phone-friendly control page for reviewed accept/decline
 actions.
 
 The project stays intentionally small: Python, Playwright, a local `.env`, a
-local `state.json`, and ntfy notifications.
+`var/state.json`, and ntfy notifications.
 
 ## Quick Start
 
@@ -69,7 +69,7 @@ The `scripts/run_*.sh` files are launchd wrappers.
 
 - Logs in to the Allrounder portal and opens the schedule table
 - Detects confirmed, pending, and unknown lessons
-- Saves screenshots and compares against `state.json`
+- Saves screenshots and compares against `var/state.json`
 - Sends ntfy notifications for new lessons or pending actions
 - Adds an `Open SlopePing` action that opens a mobile control page
 - Requires a second confirmation before remote accept/decline actions
@@ -85,22 +85,26 @@ The UI already exists; you do not need to wait for a real schedule change to
 see it.
 
 1. The checker detects a new or pending lesson and sends an ntfy notification.
-2. `Open SlopePing` opens the control page backed by the latest `state.json`.
+2. `Open SlopePing` opens the control page backed by the latest `var/state.json`.
 3. Pending lessons show review actions; confirmed lessons only offer calendar
    export.
 4. A review action opens a second confirmation page without changing Allrounder.
 5. Only the final confirmation logs in again, verifies the live lesson, and
    performs the action.
 
-While the webhook server is running, you can also open the control page directly:
+While the webhook server is running, generate fresh short-lived access links:
 
-```text
-http://YOUR_LOCAL_IP:8000/control?token=YOUR_TOKEN
+```bash
+python scripts/create_webhook_links.py
 ```
 
-If `state.json` does not exist yet, the page is empty until the checker completes
-once. These screenshots use the production page templates with anonymous sample
-lessons; they do not access Allrounder or perform an action.
+Do not place the long-term `ACTION_WEBHOOK_TOKEN` itself in a URL. Notification
+links expire after 24 hours by default, and final action confirmations expire
+after 10 minutes.
+
+If `var/state.json` does not exist yet, the page is empty until the checker
+completes once. These screenshots use the production page templates with
+anonymous sample lessons; they do not access Allrounder or perform an action.
 
 Control page:
 
@@ -148,12 +152,28 @@ secured tunnel.
 
 ## Files Created At Runtime
 
-- `state.json`: last known lesson state
-- `actions.log`: manual accept/decline action history
-- `calendar_events/`: ICS calendar files created by webhook actions
-- `screenshots/`: success and error screenshots
+- `var/state.json`: last known lesson state
+- `var/state.json.bak`: previous valid state backup
+- `var/health.json`: latest run, failure, and empty-result health
+- `var/actions.log`: manual accept/decline action history
+- `var/calendar_events/`: ICS calendar files created by webhook actions
+- `var/screenshots/`: success and error screenshots
+- `var/logs/`: checker, webhook, and launchd logs
 
 All are ignored by Git.
+
+## Unattended Safety
+
+- Checker, CLI actions, and webhook actions share one cross-process browser lock.
+- A first unexpected empty result preserves the prior state; a second valid
+  empty table confirms it.
+- Normal checks retry bounded Playwright/network failures. Accept and decline
+  actions are never retried automatically.
+- The first failure, configured consecutive-failure threshold, and recovery
+  produce status notifications.
+- Screenshots and calendar files default to 30-day bounded retention; logs
+  rotate after 5 MB.
+- Final action tokens are bound to the lesson and action and cannot be replayed.
 
 ## Development
 
@@ -174,8 +194,8 @@ they do not access the real portal. GitHub Actions runs the same command.
 ## Troubleshooting
 
 - If login fails, check `SKI_USERNAME` and `SKI_PASSWORD`.
-- If the page opens but no lessons are parsed, check the latest screenshot in
-  `screenshots/`.
+- If the page opens but no lessons are parsed, check `var/screenshots/` and
+  `var/health.json`.
 - If ntfy says sent but your phone is quiet, check the phone notification
   permission, server, and topic spelling.
 - If you want to test notifications without waiting for a new lesson, set

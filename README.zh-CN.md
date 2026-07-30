@@ -6,7 +6,7 @@ SlopePing 是为 Neuss Skihalle 教练设计的排班提醒工具。它会登录
 教练门户，打开 `Arbeitsplan/Verfügbarkeit` 页面，读取 `Übersicht` 排班表，并在
 出现新课程或课程需要确认时通过 ntfy 推送到手机。
 
-第一版保持简单：Python、Playwright、本地 `.env` 配置、本地 `state.json`，以及
+项目保持简单：Python、Playwright、本地 `.env` 配置、`var/state.json`，以及
 ntfy 通知。
 
 ## 功能
@@ -21,7 +21,7 @@ ntfy 通知。
   `confirmed`, `pending`, `unknown`
 - 将带有 `Bestätigen` / `Absagen` 下拉操作的课程标记为需要处理
 - 每次成功检查后保存截图
-- 将当前课程和 `state.json` 里的上次状态对比
+- 将当前课程和 `var/state.json` 里的上次状态对比
 - 发现新课程或待确认课程时发送 ntfy 通知
 - 通知里带 `Open SlopePing`，可以打开手机控制页
 - 手机控制页会在真正确认/拒绝前再次让你确认
@@ -38,18 +38,22 @@ SlopePing 只识别并提醒需要处理的课程。它只有在你明确运行 
 正常流程如下：
 
 1. checker 发现新课程或待确认课程，并发送 ntfy 通知。
-2. 点击通知中的 `Open SlopePing`，打开使用最近一次 `state.json` 的控制页。
+2. 点击通知中的 `Open SlopePing`，打开使用最近一次 `var/state.json` 的控制页。
 3. `pending` 课程显示 `Review accept` 和 `Review decline`；已确认课程只显示日历导出。
 4. 点击 Review 后进入二次确认页，此时仍未修改远端课程。
 5. 只有点击最后的确认按钮，SlopePing 才会重新登录 Allrounder、核对实时状态并执行动作。
 
-Webhook server 运行时，也可以不经过通知直接打开：
+Webhook server 运行时，也可以不经过通知生成新的短期访问链接：
 
-```text
-http://YOUR_LOCAL_IP:8000/control?token=YOUR_TOKEN
+```bash
+python scripts/create_webhook_links.py
 ```
 
-如果还没有 `state.json`，控制页会显示为空；先运行一次 checker 即可建立缓存。
+命令输出控制页和日历页地址。不要把 `.env` 中的长期
+`ACTION_WEBHOOK_TOKEN` 直接放进 URL。通知链接默认 24 小时失效，最终动作确认
+链接默认 10 分钟失效。
+
+如果还没有 `var/state.json`，控制页会显示为空；先运行一次 checker 即可建立缓存。
 
 下面的截图由生产页面模板和匿名模拟课程生成，没有访问 Allrounder，也没有执行真实操作。
 
@@ -189,7 +193,7 @@ python run_checker.py --decline "LESSON_KEY_OR_ID"
 ```
 
 `--accept` 会选择 `Bestätigen`。`--decline` 会选择 `Absagen`。之后 SlopePing
-会点击 `Speichern`，保存操作前后截图，并写入 `actions.log`。
+会点击 `Speichern`，保存操作前后截图，并写入 `var/actions.log`。
 
 安全规则：
 
@@ -200,12 +204,24 @@ python run_checker.py --decline "LESSON_KEY_OR_ID"
 
 ## 运行时生成的文件
 
-- `state.json`：上一次课程状态
-- `actions.log`：手动确认/拒绝操作历史
-- `calendar_events/`：webhook 操作生成的日历文件
-- `screenshots/`：成功和失败截图
+- `var/state.json`：上一次课程状态
+- `var/state.json.bak`：上一次有效状态备份
+- `var/health.json`：最近运行结果、连续失败和空结果计数
+- `var/actions.log`：手动确认/拒绝操作历史
+- `var/calendar_events/`：webhook 操作生成的日历文件
+- `var/screenshots/`：成功和失败截图
+- `var/logs/`：checker、Webhook 和 launchd 日志
 
 这些文件都已被 Git 忽略。
+
+## 无人值守保护
+
+- checker、CLI 动作和 Webhook 共用跨进程文件锁，同一时间只允许一个浏览器流程。
+- 上一次有课程而本次为 0 条时，第一次保留旧状态；连续第二次结构完整的空表才接受。
+- 普通检查会有限重试 Playwright/网络错误；确认和拒绝动作绝不自动重试。
+- 首次失败、达到连续失败阈值和后续恢复成功都会产生状态通知。
+- 截图和日历默认保留 30 天，并限制最大数量；日志超过 5 MB 后轮转。
+- 最终动作 token 与课程和动作绑定，使用一次后不能重复提交。
 
 ## 开发与验证
 
@@ -234,7 +250,8 @@ GitHub Actions 使用同一个命令。
 ## 常见问题
 
 - 登录失败：检查 `SKI_USERNAME` 和 `SKI_PASSWORD`。
-- 页面打开了但没有解析到课程：看 `screenshots/` 里最新截图。
+- 页面打开了但没有解析到课程：看 `var/screenshots/` 里最新截图和
+  `var/health.json`。
 - 终端显示 ntfy 已发送但手机没响：检查手机通知权限、server、topic 拼写。
 - 想测试通知但没有新课程：设置 `NOTIFY_ALWAYS_SEND_REPORT=true`。
 - 如果课程需要处理，通知标题会是 `SlopePing: action needed`，正文会显示可选动作。

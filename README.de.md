@@ -9,7 +9,7 @@ neuen Kursen oder nötigen Bestätigungen eine Benachrichtigung über ntfy an de
 Telefon.
 
 Die erste Version bleibt bewusst einfach: Python, Playwright, lokale `.env`
-Konfiguration, lokale `state.json` und ntfy-Benachrichtigungen.
+Konfiguration, `var/state.json` und ntfy-Benachrichtigungen.
 
 ## Funktionen
 
@@ -23,7 +23,7 @@ Konfiguration, lokale `state.json` und ntfy-Benachrichtigungen.
   `confirmed`, `pending` oder `unknown`
 - Markiert Zeilen mit `Bestätigen` / `Absagen` Auswahl als handlungsbedürftig
 - Speichert nach jeder erfolgreichen Prüfung einen Screenshot
-- Vergleicht aktuelle Kurse mit `state.json`
+- Vergleicht aktuelle Kurse mit `var/state.json`
 - Sendet ntfy-Benachrichtigungen bei neuen Kursen oder pending Aktionen
 - Öffnet über ntfy eine mobile SlopePing-Kontrollseite
 - Verlangt eine zweite Bestätigung, bevor remote bestätigt oder abgesagt wird
@@ -45,7 +45,7 @@ Kursänderung warten, um sie anzusehen.
 1. Der Checker findet einen neuen oder noch offenen Kurs und sendet eine
    ntfy-Benachrichtigung.
 2. `Open SlopePing` öffnet die Kontrollseite mit dem letzten Stand aus
-   `state.json`.
+   `var/state.json`.
 3. Offene Kurse zeigen Aktionen zum Prüfen; bestätigte Kurse bieten nur den
    Kalenderexport an.
 4. Eine Review-Aktion öffnet eine zweite Bestätigungsseite und ändert noch
@@ -53,15 +53,19 @@ Kursänderung warten, um sie anzusehen.
 5. Erst die letzte Bestätigung meldet sich erneut an, prüft den Live-Status und
    führt die Aktion aus.
 
-Bei laufendem Webhook-Server kann die Kontrollseite auch direkt geöffnet werden:
+Bei laufendem Webhook-Server können neue kurzlebige Links erzeugt werden:
 
-```text
-http://YOUR_LOCAL_IP:8000/control?token=YOUR_TOKEN
+```bash
+python scripts/create_webhook_links.py
 ```
 
-Ohne `state.json` bleibt die Seite leer, bis der Checker einmal erfolgreich
-gelaufen ist. Die folgenden Screenshots verwenden anonyme Beispieldaten und die
-echten Seitentemplates; sie greifen nicht auf Allrounder zu.
+Der langfristige `ACTION_WEBHOOK_TOKEN` darf nicht selbst in eine URL kopiert
+werden. Benachrichtigungslinks laufen standardmäßig nach 24 Stunden ab, die
+letzte Aktionsbestätigung nach 10 Minuten.
+
+Ohne `var/state.json` bleibt die Seite leer, bis der Checker einmal erfolgreich
+gelaufen ist. Die folgenden Screenshots verwenden anonyme Beispieldaten und
+die echten Seitentemplates; sie greifen nicht auf Allrounder zu.
 
 Kontrollseite:
 
@@ -200,7 +204,7 @@ Beispiel:
 
 `--accept` wählt `Bestätigen`. `--decline` wählt `Absagen`. Danach klickt
 SlopePing auf `Speichern`, speichert Vorher-/Nachher-Screenshots und schreibt
-`actions.log`.
+`var/actions.log`.
 
 Sicherheitsregeln:
 
@@ -214,12 +218,27 @@ Sicherheitsregeln:
 
 ## Laufzeitdateien
 
-- `state.json`: zuletzt bekannter Kursstand
-- `actions.log`: Historie manueller Bestätigungen und Absagen
-- `calendar_events/`: Kalenderdateien aus Webhook-Aktionen
-- `screenshots/`: Erfolgs- und Fehler-Screenshots
+- `var/state.json`: zuletzt bekannter Kursstand
+- `var/state.json.bak`: Sicherung des vorherigen gültigen Zustands
+- `var/health.json`: letzter Lauf, Fehler- und Leerresultatstatus
+- `var/actions.log`: Historie manueller Bestätigungen und Absagen
+- `var/calendar_events/`: Kalenderdateien aus Webhook-Aktionen
+- `var/screenshots/`: Erfolgs- und Fehler-Screenshots
+- `var/logs/`: Checker-, Webhook- und launchd-Protokolle
 
-Beide sind in Git ignoriert.
+Alle werden von Git ignoriert.
+
+## Schutz für unbeaufsichtigten Betrieb
+
+- Checker, CLI- und Webhook-Aktionen teilen eine prozessübergreifende Sperre.
+- Das erste unerwartete leere Ergebnis behält den alten Zustand; erst die
+  zweite gültige leere Tabelle bestätigt ihn.
+- Normale Prüfungen wiederholen begrenzte Playwright-/Netzwerkfehler.
+  Bestätigen und Absagen werden niemals automatisch wiederholt.
+- Erster Fehler, Fehlerschwelle und spätere Erholung erzeugen Statusmeldungen.
+- Screenshots und Kalenderdateien haben standardmäßig 30 Tage Aufbewahrung;
+  Protokolle rotieren ab 5 MB.
+- Finale Aktionstoken sind an Kurs und Aktion gebunden und nicht wiederverwendbar.
 
 ## Entwicklung und Prüfungen
 
@@ -241,8 +260,8 @@ führt denselben Befehl aus.
 ## Fehlerbehebung
 
 - Login schlägt fehl: `SKI_USERNAME` und `SKI_PASSWORD` prüfen.
-- Seite öffnet, aber keine Kurse werden gelesen: neuesten Screenshot in
-  `screenshots/` prüfen.
+- Seite öffnet, aber keine Kurse werden gelesen: `var/screenshots/` und
+  `var/health.json` prüfen.
 - Terminal meldet ntfy gesendet, aber das Telefon bleibt stumm:
   Benachrichtigungsrechte, Server und Topic prüfen.
 - Benachrichtigung testen ohne neuen Kurs:
