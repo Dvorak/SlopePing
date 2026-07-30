@@ -15,6 +15,7 @@ def settings(tmp_path: Path) -> Settings:
         headless=True,
         slow_mo_ms=0,
         navigation_timeout_ms=100,
+        runtime_dir=tmp_path,
         screenshots_dir=tmp_path / "screenshots",
         state_path=tmp_path / "state.json",
         health_path=tmp_path / "health.json",

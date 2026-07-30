@@ -9,7 +9,12 @@ WEBHOOK_SCRIPT="${PROJECT_ROOT}/scripts/run_webhook_server.sh"
 PLIST_DIR="${HOME}/Library/LaunchAgents"
 CHECKER_PLIST_PATH="${PLIST_DIR}/${CHECKER_LABEL}.plist"
 WEBHOOK_PLIST_PATH="${PLIST_DIR}/${WEBHOOK_LABEL}.plist"
-LOG_DIR="${PROJECT_ROOT}/logs"
+PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+if [[ -x "${PYTHON_BIN}" ]]; then
+  LOG_DIR="$("${PYTHON_BIN}" "${PROJECT_ROOT}/scripts/runtime_path.py" logs_dir)"
+else
+  LOG_DIR="${PROJECT_ROOT}/var/logs"
+fi
 
 if [[ ! -f "${PROJECT_ROOT}/run_checker.py" ]]; then
   echo "ERROR: run this script from the project root:"

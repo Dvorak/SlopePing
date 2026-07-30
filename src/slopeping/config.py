@@ -19,6 +19,19 @@ class Selectors:
 
 
 @dataclass(frozen=True)
+class RuntimePaths:
+    runtime_dir: Path
+    state_path: Path
+    screenshots_dir: Path
+    health_path: Path
+    lock_path: Path
+    actions_log_path: Path
+    calendar_dir: Path
+    logs_dir: Path
+    used_nonces_path: Path
+
+
+@dataclass(frozen=True)
 class Settings:
     login_url: str
     username: str
@@ -26,6 +39,7 @@ class Settings:
     headless: bool
     slow_mo_ms: int
     navigation_timeout_ms: int
+    runtime_dir: Path
     screenshots_dir: Path
     state_path: Path
     health_path: Path
@@ -73,8 +87,27 @@ def _float_from_env(name: str, default: float) -> float:
         raise ValueError(f"{name} must be a number, got {value!r}") from exc
 
 
+def load_runtime_paths(env_file: str | Path = ".env") -> RuntimePaths:
+    load_dotenv(env_file)
+    runtime_dir = Path(os.getenv("SLOPEPING_RUNTIME_DIR", "var"))
+    return RuntimePaths(
+        runtime_dir=runtime_dir,
+        state_path=Path(os.getenv("SKI_STATE_PATH", str(runtime_dir / "state.json"))),
+        screenshots_dir=Path(os.getenv("SKI_SCREENSHOTS_DIR", str(runtime_dir / "screenshots"))),
+        health_path=Path(os.getenv("SKI_HEALTH_PATH", str(runtime_dir / "health.json"))),
+        lock_path=Path(os.getenv("SKI_LOCK_PATH", str(runtime_dir / "slopeping.lock"))),
+        actions_log_path=Path(os.getenv("SKI_ACTIONS_LOG_PATH", str(runtime_dir / "actions.log"))),
+        calendar_dir=Path(os.getenv("SKI_CALENDAR_DIR", str(runtime_dir / "calendar_events"))),
+        logs_dir=Path(os.getenv("SKI_LOGS_DIR", str(runtime_dir / "logs"))),
+        used_nonces_path=Path(
+            os.getenv("SKI_USED_NONCES_PATH", str(runtime_dir / "used-action-nonces.json"))
+        ),
+    )
+
+
 def load_settings(env_file: str | Path = ".env") -> Settings:
     load_dotenv(env_file)
+    runtime_paths = load_runtime_paths(env_file)
 
     username = os.getenv("SKI_USERNAME", "").strip()
     password = os.getenv("SKI_PASSWORD", "")
@@ -101,14 +134,15 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         headless=_bool_from_env("SKI_HEADLESS", False),
         slow_mo_ms=_int_from_env("SKI_SLOW_MO_MS", 250),
         navigation_timeout_ms=_int_from_env("SKI_NAVIGATION_TIMEOUT_MS", 30000),
-        screenshots_dir=Path(os.getenv("SKI_SCREENSHOTS_DIR", "screenshots")),
-        state_path=Path(os.getenv("SKI_STATE_PATH", "state.json")),
-        health_path=Path(os.getenv("SKI_HEALTH_PATH", ".slopeping-health.json")),
-        lock_path=Path(os.getenv("SKI_LOCK_PATH", ".slopeping.lock")),
-        actions_log_path=Path(os.getenv("SKI_ACTIONS_LOG_PATH", "actions.log")),
-        calendar_dir=Path(os.getenv("SKI_CALENDAR_DIR", "calendar_events")),
-        logs_dir=Path(os.getenv("SKI_LOGS_DIR", "logs")),
-        used_nonces_path=Path(os.getenv("SKI_USED_NONCES_PATH", ".slopeping-nonces.json")),
+        runtime_dir=runtime_paths.runtime_dir,
+        screenshots_dir=runtime_paths.screenshots_dir,
+        state_path=runtime_paths.state_path,
+        health_path=runtime_paths.health_path,
+        lock_path=runtime_paths.lock_path,
+        actions_log_path=runtime_paths.actions_log_path,
+        calendar_dir=runtime_paths.calendar_dir,
+        logs_dir=runtime_paths.logs_dir,
+        used_nonces_path=runtime_paths.used_nonces_path,
         empty_confirmation_runs=max(2, _int_from_env("SKI_EMPTY_CONFIRMATION_RUNS", 2)),
         check_retry_attempts=max(1, _int_from_env("SKI_CHECK_RETRY_ATTEMPTS", 2)),
         check_retry_delay_seconds=max(

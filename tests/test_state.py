@@ -78,6 +78,18 @@ def test_save_and_load_state_atomically(tmp_path: Path) -> None:
     assert not path.with_suffix(".json.tmp").exists()
 
 
+def test_save_keeps_the_previous_state_as_a_backup(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    original = [lesson()]
+    updated = [lesson(tag="Do, 30.07.2026")]
+    save_records(path, original)
+
+    save_records(path, updated)
+
+    assert load_records(path) == updated
+    assert load_records(path.with_suffix(".json.bak")) == original
+
+
 def test_load_legacy_list_state(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     path.write_text(

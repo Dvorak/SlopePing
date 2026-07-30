@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -101,6 +102,8 @@ def load_records(path: Path) -> list[ScheduleRecord]:
 
 def save_records(path: Path, records: list[ScheduleRecord]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        shutil.copy2(path, path.with_suffix(path.suffix + ".bak"))
     payload = {
         "last_checked_at": datetime.now(UTC).isoformat(),
         "records": [asdict(record) for record in records],

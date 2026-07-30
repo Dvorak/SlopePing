@@ -9,6 +9,7 @@ actions.log
 screenshots/
 calendar_events/
 logs/
+var/
 .DS_Store
 dist/
 build/

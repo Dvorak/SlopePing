@@ -3,7 +3,11 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
-LOG_DIR="${PROJECT_ROOT}/logs"
+if [[ -x "${PYTHON_BIN}" ]]; then
+  LOG_DIR="$("${PYTHON_BIN}" "${PROJECT_ROOT}/scripts/runtime_path.py" logs_dir)"
+else
+  LOG_DIR="${PROJECT_ROOT}/var/logs"
+fi
 LOG_FILE="${LOG_DIR}/checker.log"
 
 mkdir -p "${LOG_DIR}"
