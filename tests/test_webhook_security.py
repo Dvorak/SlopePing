@@ -1,24 +1,17 @@
-import asyncio
 import html
 import re
 
-from fastapi import Request
 from fastapi.responses import Response
 
 from slopeping.security import issue_token, verify_token
 from slopeping.state import ScheduleRecord
-from slopeping.webhook import add_security_headers, confirm_action
+from slopeping.webhook import _apply_security_headers, confirm_action
 
 SECRET = "a-secure-test-secret-that-is-long-enough"
 
 
 def test_webhook_responses_include_security_headers() -> None:
-    request = Request({"type": "http", "headers": []})
-
-    async def call_next(request: Request) -> Response:
-        return Response("ok")
-
-    response = asyncio.run(add_security_headers(request, call_next))
+    response = _apply_security_headers(Response("ok"))
 
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["referrer-policy"] == "no-referrer"

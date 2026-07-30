@@ -50,6 +50,10 @@ async def add_security_headers(
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     response = await call_next(request)
+    return _apply_security_headers(response)
+
+
+def _apply_security_headers(response: Response) -> Response:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Content-Security-Policy"] = (
         "default-src 'none'; style-src 'unsafe-inline'; "
