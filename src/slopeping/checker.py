@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import traceback
 from time import monotonic
 
@@ -17,6 +18,7 @@ from .health import (
 )
 from .maintenance import maintain_runtime_files
 from .notify import (
+    notify_compact_report,
     notify_new_lessons,
     notify_run_failure,
     notify_run_recovery,
@@ -135,12 +137,16 @@ def _process_records(settings: Settings, records: list[ScheduleRecord], screensh
         flush=True,
     )
     _print_action_hints(pending_lessons)
-    if _notify_always_send_report():
+    report_mode = _notification_report_mode()
+    if report_mode == "detailed":
         print(
-            "[notify] NOTIFY_ALWAYS_SEND_REPORT is enabled; sending run report.",
+            "[notify] Sending a detailed run report.",
             flush=True,
         )
         notify_run_report(records, new_lessons)
+    elif report_mode == "compact":
+        print("[notify] Sending a compact run report.", flush=True)
+        notify_compact_report(records, new_lessons)
     else:
         print(
             "[notify] Sending notification if new or pending lessons exist.",
@@ -238,8 +244,18 @@ def _merge_lessons(
     return merged
 
 
-def _notify_always_send_report() -> bool:
-    import os
+def _notification_report_mode() -> str:
+    value = os.getenv("NOTIFY_REPORT_MODE", "").strip().casefold()
+    if value in {"changes", "compact", "detailed"}:
+        return value
+    if value:
+        print(
+            f"WARNING: Unknown NOTIFY_REPORT_MODE={value!r}; using 'changes'.",
+            flush=True,
+        )
+        return "changes"
 
-    value = os.getenv("NOTIFY_ALWAYS_SEND_REPORT", "")
-    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    legacy_value = os.getenv("NOTIFY_ALWAYS_SEND_REPORT", "")
+    if legacy_value.strip().casefold() in {"1", "true", "yes", "y", "on"}:
+        return "detailed"
+    return "changes"

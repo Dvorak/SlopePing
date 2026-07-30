@@ -30,7 +30,7 @@ The project stays intentionally small: Python, Playwright, a local `.env`, a
   NOTIFY_CHANNEL=ntfy
   NTFY_SERVER=https://ntfy.sh
   NTFY_TOPIC=your-long-private-topic
-  NOTIFY_ALWAYS_SEND_REPORT=true
+  NOTIFY_REPORT_MODE=changes
   ACTION_WEBHOOK_TOKEN=your-generated-secure-token
   ACTION_WEBHOOK_BASE_URL=http://YOUR_LOCAL_IP:8000
   WEBHOOK_HOST=127.0.0.1
@@ -57,7 +57,7 @@ The project stays intentionally small: Python, Playwright, a local `.env`, a
 
 5. Test on your phone.
 
-  Open the ntfy notification and tap `Open SlopePing`. Pending lessons require
+  Open the ntfy notification and tap `打开 SlopePing`. Pending lessons require
   a second confirmation in the control page before SlopePing changes anything.
   If you need the full walkthrough, see [webhook-startup-guide.md](docs/webhook-startup-guide.md).
 
@@ -71,7 +71,7 @@ The `scripts/run_*.sh` files are launchd wrappers.
 - Detects confirmed, pending, and unknown lessons
 - Saves screenshots and compares against `var/state.json`
 - Sends ntfy notifications for new lessons or pending actions
-- Adds an `Open SlopePing` action that opens a mobile control page
+- Adds an `打开 SlopePing` action that opens a mobile control page
 - Requires a second confirmation before remote accept/decline actions
 - Can export lessons as `.ics` calendar files
 - Supports `--accept` and `--decline` for explicit CLI actions
@@ -85,7 +85,7 @@ The UI already exists; you do not need to wait for a real schedule change to
 see it.
 
 1. The checker detects a new or pending lesson and sends an ntfy notification.
-2. `Open SlopePing` opens the control page backed by the latest `var/state.json`.
+2. `打开 SlopePing` opens the control page backed by the latest `var/state.json`.
 3. Pending lessons show review actions; confirmed lessons only offer calendar
    export.
 4. A review action opens a second confirmation page without changing Allrounder.
@@ -142,9 +142,9 @@ python run_checker.py --accept "LESSON_KEY_OR_ID"
 python run_checker.py --decline "LESSON_KEY_OR_ID"
 ```
 
-If a lesson needs action, the notification title is `SlopePing: action needed`
-and the message shows the available actions. The ntfy action opens the control
-page; it does not directly accept or decline the lesson.
+If a lesson needs action, the notification title shows the pending count and
+the message contains only the relevant lesson summary. The ntfy action opens
+the control page; it does not directly accept or decline the lesson.
 
 For safer phone access, the webhook server listens on `127.0.0.1` by default.
 Use `WEBHOOK_HOST=0.0.0.0` only on a trusted local network, Tailscale, or a
@@ -198,10 +198,10 @@ they do not access the real portal. GitHub Actions runs the same command.
   `var/health.json`.
 - If ntfy says sent but your phone is quiet, check the phone notification
   permission, server, and topic spelling.
-- If you want to test notifications without waiting for a new lesson, set
-  `NOTIFY_ALWAYS_SEND_REPORT=true`.
-- If a lesson needs action, the notification title is `SlopePing: action needed`
-  and the message shows the available actions.
+- Set `NOTIFY_REPORT_MODE=compact` to receive a short status after every
+  successful check, or `detailed` for the full diagnostic report.
+- If a lesson needs action, the notification shows the pending count and only
+  the lesson time, name, location, and status.
 
 ## More Details
 

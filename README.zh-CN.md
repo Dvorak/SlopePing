@@ -23,7 +23,7 @@ ntfy 通知。
 - 每次成功检查后保存截图
 - 将当前课程和 `var/state.json` 里的上次状态对比
 - 发现新课程或待确认课程时发送 ntfy 通知
-- 通知里带 `Open SlopePing`，可以打开手机控制页
+- 通知里带 `打开 SlopePing`，可以打开手机控制页
 - 手机控制页会在真正确认/拒绝前再次让你确认
 - 可以把课程导出为 `.ics` 日历文件
 - 测试阶段可以每次运行都发送当前课程报告
@@ -38,7 +38,7 @@ SlopePing 只识别并提醒需要处理的课程。它只有在你明确运行 
 正常流程如下：
 
 1. checker 发现新课程或待确认课程，并发送 ntfy 通知。
-2. 点击通知中的 `Open SlopePing`，打开使用最近一次 `var/state.json` 的控制页。
+2. 点击通知中的 `打开 SlopePing`，打开使用最近一次 `var/state.json` 的控制页。
 3. `pending` 课程显示 `Review accept` 和 `Review decline`；已确认课程只显示日历导出。
 4. 点击 Review 后进入二次确认页，此时仍未修改远端课程。
 5. 只有点击最后的确认按钮，SlopePing 才会重新登录 Allrounder、核对实时状态并执行动作。
@@ -132,17 +132,18 @@ WEBHOOK_PORT=8000
 
 手机通过局域网访问时，`ACTION_WEBHOOK_BASE_URL` 要写电脑的局域网 IP。只有在可信网络里才把 `WEBHOOK_HOST` 改成 `0.0.0.0`。
 
-测试阶段，如果希望每次成功运行都收到通知：
+通知支持三种报告模式：
 
 ```dotenv
-NOTIFY_ALWAYS_SEND_REPORT=true
+NOTIFY_REPORT_MODE=changes
 ```
 
-正常使用时，只在发现新课程或待确认课程时通知：
+- `changes`：只在新增课程或课程待确认时通知。
+- `compact`：每次成功检查都发送一条简洁状态；有重要课程时才附详情。
+- `detailed`：每次成功检查都发送包含内部字段的完整诊断报告。
 
-```dotenv
-NOTIFY_ALWAYS_SEND_REPORT=false
-```
+如果希望在每天的三个检查时间都确认程序正常运行，推荐使用
+`NOTIFY_REPORT_MODE=compact`。
 
 ## 运行
 
@@ -166,7 +167,7 @@ python run_checker.py
 
 如果发现 pending 课程，终端还会直接打印可复制的操作命令。
 
-手机通知里的 `Open SlopePing` 会打开控制页。这里可以查看当前课程、下载日历文件，
+手机通知里的 `打开 SlopePing` 会打开控制页。这里可以查看当前课程、下载日历文件，
 也可以进入确认/拒绝页面。确认或拒绝动作需要再点一次确认按钮，不会因为误触 ntfy
 通知就直接执行。
 
@@ -253,8 +254,8 @@ GitHub Actions 使用同一个命令。
 - 页面打开了但没有解析到课程：看 `var/screenshots/` 里最新截图和
   `var/health.json`。
 - 终端显示 ntfy 已发送但手机没响：检查手机通知权限、server、topic 拼写。
-- 想测试通知但没有新课程：设置 `NOTIFY_ALWAYS_SEND_REPORT=true`。
-- 如果课程需要处理，通知标题会是 `SlopePing: action needed`，正文会显示可选动作。
+- 想测试通知但没有新课程：临时设置 `NOTIFY_REPORT_MODE=compact`。
+- 如果课程需要处理，通知标题会显示待确认课程数量，正文只保留时间、课程、地点和状态。
 
 ## 更多说明
 

@@ -132,14 +132,15 @@ If a key did not exist in `var/state.json`, the lesson is treated as new.
 If the key exists but the full record changed, for example `Bestätigung`
 changed, it is treated as changed.
 
-The normal notification path sends new lessons and pending lessons that need
-action. During testing, `NOTIFY_ALWAYS_SEND_REPORT=true` sends a report on
-every successful run.
+`NOTIFY_REPORT_MODE` controls successful-run notifications. `changes` sends
+only new and pending lessons, `compact` sends a short status after every
+successful run and adds concise details when needed, and `detailed` sends the
+full diagnostic report.
 
 If any notified lesson is pending, the notification title is:
 
 ```text
-SlopePing: action needed
+SlopePing · 1 节课程待确认
 ```
 
 SlopePing does not automatically choose `Bestätigen` or `Absagen`, and it does
@@ -157,8 +158,8 @@ python run_checker.py --decline "LESSON_ID"
 If `ACTION_WEBHOOK_BASE_URL` and `ACTION_WEBHOOK_TOKEN` are configured, ntfy
 adds HMAC-signed links that expire after 24 hours by default:
 
-- `Open SlopePing`: opens `/control?token=...`
-- `Open calendar page`: opens `/calendar?token=...`
+- `打开 SlopePing`: opens `/control?token=...`
+- `打开日历`: opens `/calendar?token=...`
 
 The notification does not execute accept or decline actions directly. The
 control and calendar pages read the last saved `var/state.json` snapshot, so opening

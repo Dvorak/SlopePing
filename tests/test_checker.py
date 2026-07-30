@@ -2,7 +2,7 @@ from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
 
-from slopeping.checker import _run_check
+from slopeping.checker import _notification_report_mode, _run_check
 from slopeping.config import Selectors, Settings
 from slopeping.health import load_health, record_run_failure
 
@@ -88,3 +88,23 @@ def test_success_after_failure_sends_recovery(monkeypatch, tmp_path: Path) -> No
 
     assert _run_check(current_settings) == 0
     assert recoveries == [(1, 0)]
+
+
+def test_notification_report_mode_defaults_to_changes(monkeypatch) -> None:
+    monkeypatch.delenv("NOTIFY_REPORT_MODE", raising=False)
+    monkeypatch.delenv("NOTIFY_ALWAYS_SEND_REPORT", raising=False)
+
+    assert _notification_report_mode() == "changes"
+
+
+def test_notification_report_mode_accepts_compact(monkeypatch) -> None:
+    monkeypatch.setenv("NOTIFY_REPORT_MODE", "compact")
+
+    assert _notification_report_mode() == "compact"
+
+
+def test_legacy_always_report_setting_uses_detailed_mode(monkeypatch) -> None:
+    monkeypatch.delenv("NOTIFY_REPORT_MODE", raising=False)
+    monkeypatch.setenv("NOTIFY_ALWAYS_SEND_REPORT", "true")
+
+    assert _notification_report_mode() == "detailed"

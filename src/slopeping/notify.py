@@ -4,6 +4,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime
 from typing import TypeAlias
 
 from .security import build_access_url
@@ -18,13 +19,34 @@ def notify_new_lessons(new_lessons: list[Lesson]) -> None:
 
     _send_notification(
         subject=_notification_subject(new_lessons),
-        body=_format_lessons(new_lessons),
+        body=_format_compact_lessons(new_lessons),
+    )
+
+
+def notify_compact_report(
+    current_lessons: list[Lesson],
+    new_lessons: list[Lesson],
+) -> None:
+    pending_lessons = _pending_lessons(current_lessons)
+    notable_lessons = _merge_lessons(new_lessons, pending_lessons)
+
+    if pending_lessons:
+        subject = f"SlopePing · {len(pending_lessons)} 节课程待确认"
+    elif new_lessons:
+        subject = f"SlopePing · {len(new_lessons)} 节新课程"
+    else:
+        subject = f"SlopePing · {datetime.now().astimezone():%H:%M} 检查完成"
+
+    _send_notification(
+        subject=subject,
+        body=_format_compact_report(current_lessons, new_lessons, notable_lessons),
     )
 
 
 def notify_run_report(current_lessons: list[Lesson], new_lessons: list[Lesson]) -> None:
-    if _pending_lessons(current_lessons):
-        subject = "SlopePing: action needed"
+    pending_count = len(_pending_lessons(current_lessons))
+    if pending_count:
+        subject = f"SlopePing · {pending_count} 节课程待确认"
     else:
         subject = (
             f"SlopePing test: {len(current_lessons)} current lesson(s), "
@@ -38,13 +60,11 @@ def notify_run_report(current_lessons: list[Lesson], new_lessons: list[Lesson]) 
 
 def notify_run_failure(error: BaseException, consecutive_failures: int) -> None:
     _send_notification(
-        subject=f"SlopePing failure ({consecutive_failures} consecutive)",
+        subject="SlopePing · 检查失败",
         body="\n".join(
             [
-                "The scheduled checker did not complete.",
-                f"Error type: {type(error).__name__}",
-                f"Error: {error}",
-                "The last valid schedule state was preserved.",
+                f"连续失败 {consecutive_failures} 次，已保留上次有效课程。",
+                f"{type(error).__name__}: {error}",
             ]
         ),
         include_actions=False,
@@ -53,11 +73,8 @@ def notify_run_failure(error: BaseException, consecutive_failures: int) -> None:
 
 def notify_run_recovery(previous_failures: int, record_count: int) -> None:
     _send_notification(
-        subject="SlopePing recovered",
-        body=(
-            f"The checker completed successfully after {previous_failures} failed run(s). "
-            f"Parsed {record_count} lesson(s)."
-        ),
+        subject="SlopePing · 已恢复",
+        body=(f"检查已在连续失败 {previous_failures} 次后恢复，当前读取到 {record_count} 节课程。"),
         include_actions=False,
     )
 
@@ -159,7 +176,7 @@ def _build_control_action() -> list[str]:
     except ValueError as exc:
         print(f"WARNING: Cannot create control link: {exc}", flush=True)
         return []
-    return [f"view, Open SlopePing, {url}"]
+    return [f"view, 打开 SlopePing, {url}"]
 
 
 def _build_calendar_action() -> list[str]:
@@ -181,17 +198,50 @@ def _build_calendar_action() -> list[str]:
     except ValueError as exc:
         print(f"WARNING: Cannot create calendar link: {exc}", flush=True)
         return []
-    return [f"view, Open calendar page, {url}"]
+    return [f"view, 打开日历, {url}"]
 
 
 def _notification_subject(lessons: list[Lesson]) -> str:
-    if _pending_lessons(lessons):
-        return "SlopePing: action needed"
-    return f"SlopePing: {len(lessons)} new lesson(s)"
+    pending_count = len(_pending_lessons(lessons))
+    if pending_count:
+        return f"SlopePing · {pending_count} 节课程待确认"
+    return f"SlopePing · {len(lessons)} 节新课程"
 
 
 def _pending_lessons(lessons: list[Lesson]) -> list[Lesson]:
     return [lesson for lesson in lessons if lesson.confirmation_status == "pending"]
+
+
+def _format_compact_report(
+    current_lessons: list[Lesson],
+    new_lessons: list[Lesson],
+    notable_lessons: list[Lesson],
+) -> str:
+    pending_count = len(_pending_lessons(current_lessons))
+    action_summary = f"待确认 {pending_count} 节" if pending_count else "无需处理"
+    summary = f"当前 {len(current_lessons)} 节｜新增 {len(new_lessons)} 节｜{action_summary}"
+    if not notable_lessons:
+        return summary
+    return f"{summary}\n\n{_format_compact_lessons(notable_lessons)}"
+
+
+def _format_compact_lessons(lessons: list[Lesson]) -> str:
+    blocks = []
+    for lesson in lessons:
+        status = {
+            "confirmed": "已确认",
+            "pending": "待确认",
+        }.get(lesson.confirmation_status, "状态未知")
+        blocks.append(
+            "\n".join(
+                [
+                    f"{lesson.tag} · {lesson.von}–{lesson.bis}",
+                    f"{lesson.trainingsbezeichnung} · {lesson.raum_ort}",
+                    f"状态：{status}",
+                ]
+            )
+        )
+    return "\n\n".join(blocks)
 
 
 def _format_run_report(current_lessons: list[Lesson], new_lessons: list[Lesson]) -> str:
@@ -234,6 +284,17 @@ def _format_actions(actions: list[str] | None) -> str:
     if not actions:
         return "-"
     return ", ".join(actions)
+
+
+def _merge_lessons(first: list[Lesson], second: list[Lesson]) -> list[Lesson]:
+    merged: list[Lesson] = []
+    seen: set[str] = set()
+    for lesson in first + second:
+        if lesson.key in seen:
+            continue
+        seen.add(lesson.key)
+        merged.append(lesson)
+    return merged
 
 
 def _int_env(name: str, default: int) -> int:

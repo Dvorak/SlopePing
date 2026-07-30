@@ -61,7 +61,7 @@ Change lifetimes with `WEBHOOK_LINK_TTL_SECONDS` and
 ## 4. User flow
 
 1. The checker saves the latest schedule to `var/state.json`.
-2. ntfy sends `Open SlopePing` when a lesson is new or pending.
+2. ntfy sends `打开 SlopePing` when a lesson is new or pending.
 3. The control page reads only the cached state.
 4. `Review accept` or `Review decline` opens a second confirmation page.
 5. The final POST consumes its one-time nonce.

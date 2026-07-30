@@ -34,7 +34,7 @@ SlopePing erkennt und meldet handlungsbedürftige Kurse. Es klickt nur nach
 einem ausdrücklichen CLI-Befehl oder nach einer zweiten Bestätigung auf der
 mobilen Kontrollseite auf `Bestätigen`, `Absagen` und `Speichern`.
 
-In ntfy-Benachrichtigungen erscheint `Open SlopePing` für die mobile
+In ntfy-Benachrichtigungen erscheint `打开 SlopePing` für die mobile
 Kontrollseite.
 
 ## Wann die mobile Oberfläche erscheint
@@ -44,7 +44,7 @@ Kursänderung warten, um sie anzusehen.
 
 1. Der Checker findet einen neuen oder noch offenen Kurs und sendet eine
    ntfy-Benachrichtigung.
-2. `Open SlopePing` öffnet die Kontrollseite mit dem letzten Stand aus
+2. `打开 SlopePing` öffnet die Kontrollseite mit dem letzten Stand aus
    `var/state.json`.
 3. Offene Kurse zeigen Aktionen zum Prüfen; bestätigte Kurse bieten nur den
    Kalenderexport an.
@@ -141,17 +141,18 @@ Für Zugriff vom Telefon im lokalen Netz muss `ACTION_WEBHOOK_BASE_URL` die
 lokale IP des Computers verwenden. `WEBHOOK_HOST=0.0.0.0` nur in einem
 vertrauenswürdigen Netzwerk setzen.
 
-Für Tests bei jedem erfolgreichen Lauf eine Nachricht senden:
+Es gibt drei Berichtsmodi:
 
 ```dotenv
-NOTIFY_ALWAYS_SEND_REPORT=true
+NOTIFY_REPORT_MODE=changes
 ```
 
-Für den normalen Betrieb nur bei neuen Kursen oder nötigen Bestätigungen benachrichtigen:
+- `changes`: nur bei neuen Kursen oder nötigen Bestätigungen melden.
+- `compact`: nach jedem erfolgreichen Lauf einen kurzen Status senden.
+- `detailed`: nach jedem erfolgreichen Lauf den vollständigen Diagnosebericht senden.
 
-```dotenv
-NOTIFY_ALWAYS_SEND_REPORT=false
-```
+Wer zu allen drei täglichen Prüfzeiten einen kurzen Status möchte, verwendet
+`NOTIFY_REPORT_MODE=compact`.
 
 ## Ausführen
 
@@ -177,7 +178,7 @@ Vergleich und Benachrichtigungsstatus.
 Wenn ein Kurs pending ist, druckt das Terminal direkt kopierbare Befehle für
 diesen Kurs.
 
-Auf dem Handy öffnet `Open SlopePing` die Kontrollseite. Dort kannst du Kurse
+Auf dem Handy öffnet `打开 SlopePing` die Kontrollseite. Dort kannst du Kurse
 prüfen, Kalenderdateien laden und erst nach einer zweiten Bestätigung annehmen
 oder absagen.
 
@@ -264,10 +265,10 @@ führt denselben Befehl aus.
   `var/health.json` prüfen.
 - Terminal meldet ntfy gesendet, aber das Telefon bleibt stumm:
   Benachrichtigungsrechte, Server und Topic prüfen.
-- Benachrichtigung testen ohne neuen Kurs:
-  `NOTIFY_ALWAYS_SEND_REPORT=true` setzen.
-- Wenn ein Kurs eine Aktion braucht, lautet der Titel `SlopePing: action needed`
-  und die Nachricht zeigt die verfügbaren Aktionen.
+- Benachrichtigung ohne neuen Kurs testen:
+  `NOTIFY_REPORT_MODE=compact` setzen.
+- Wenn ein Kurs eine Aktion braucht, zeigt die Benachrichtigung Anzahl, Zeit,
+  Kurs, Ort und Status.
 
 ## Weitere Details
 

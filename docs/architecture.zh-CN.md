@@ -121,18 +121,20 @@ Tag + Von + Bis + Raum/Ort + Trainingsbezeichnung
 
 如果 key 已存在，但完整记录变化了，例如 `Bestätigung` 变了，就是状态变化。
 
-正常模式会通知新课程，以及需要处理的 pending 课程。测试阶段可以设置：
+通知由 `NOTIFY_REPORT_MODE` 控制：
 
 ```dotenv
-NOTIFY_ALWAYS_SEND_REPORT=true
+NOTIFY_REPORT_MODE=changes
 ```
 
-这样每次成功运行都会发送当前课程报告。
+- `changes`：只通知新课程及需要处理的 pending 课程。
+- `compact`：每次成功运行发送一行统计，有新课程或 pending 课程时附简洁详情。
+- `detailed`：每次成功运行发送包含内部字段的诊断报告。
 
 如果被通知的课程里有 pending 状态，通知标题会是：
 
 ```text
-SlopePing: action needed
+SlopePing · 1 节课程待确认
 ```
 
 SlopePing 不会自动选择 `Bestätigen` 或 `Absagen`，也不会点击 `Speichern`。
@@ -149,8 +151,8 @@ python run_checker.py --decline "LESSON_ID"
 如果配置了 `ACTION_WEBHOOK_BASE_URL` 和 `ACTION_WEBHOOK_TOKEN`，ntfy 会签发
 默认 24 小时有效的 HMAC 安全链接：
 
-- `Open SlopePing`：打开 `/control?token=...`
-- `Open calendar page`：打开 `/calendar?token=...`
+- `打开 SlopePing`：打开 `/control?token=...`
+- `打开日历`：打开 `/calendar?token=...`
 
 通知不会直接执行确认或拒绝。控制页和日历页默认读取上一次保存的 `var/state.json`
 快照，所以打开页面不会启动 Playwright。`/actions/execute` 会在二次确认后登录并

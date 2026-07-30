@@ -133,19 +133,20 @@ neu.
 Wenn der Schlüssel vorhanden ist, aber der komplette Datensatz anders ist, zum
 Beispiel bei geänderter `Bestätigung`, gilt der Kurs als geändert.
 
-Im normalen Modus werden neue Kurse und pending Kurse mit Handlungsbedarf
-gemeldet. Für Tests kann man setzen:
+`NOTIFY_REPORT_MODE` steuert die Benachrichtigungen erfolgreicher Läufe:
 
 ```dotenv
-NOTIFY_ALWAYS_SEND_REPORT=true
+NOTIFY_REPORT_MODE=changes
 ```
 
-Dann sendet jeder erfolgreiche Lauf einen aktuellen Bericht.
+`changes` meldet nur neue und pending Kurse, `compact` sendet nach jedem
+erfolgreichen Lauf einen kurzen Status und `detailed` den vollständigen
+Diagnosebericht.
 
 Wenn ein gemeldeter Kurs pending ist, lautet der Benachrichtigungstitel:
 
 ```text
-SlopePing: action needed
+SlopePing · 1 节课程待确认
 ```
 
 SlopePing wählt nicht automatisch `Bestätigen` oder `Absagen` und klickt nicht
@@ -164,8 +165,8 @@ python run_checker.py --decline "LESSON_ID"
 Wenn `ACTION_WEBHOOK_BASE_URL` und `ACTION_WEBHOOK_TOKEN` konfiguriert sind,
 fügt ntfy HMAC-signierte Links hinzu, die standardmäßig 24 Stunden gelten:
 
-- `Open SlopePing`: öffnet `/control?token=...`
-- `Open calendar page`: öffnet `/calendar?token=...`
+- `打开 SlopePing`: öffnet `/control?token=...`
+- `打开日历`: öffnet `/calendar?token=...`
 
 Die Benachrichtigung führt Bestätigen oder Absagen nicht direkt aus. Kontroll-
 und Kalenderseite lesen standardmäßig den zuletzt gespeicherten `var/state.json`
